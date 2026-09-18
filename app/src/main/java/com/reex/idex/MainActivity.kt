@@ -63,6 +63,7 @@ class MainActivity : AppCompatActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.rgb(10,14,21))
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_LTR
         }
 
         val header = LinearLayout(this).apply {
@@ -85,54 +86,54 @@ class MainActivity : AppCompatActivity() {
         header.addView(button("ع/EN",58) { arabic = !arabic; panel.text = if (arabic) "العربية مفعّلة" else "English enabled" })
         root.addView(header)
 
+        val projectScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setBackgroundColor(Color.rgb(25,34,49))
+        }
         val project = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(Color.rgb(25,34,49))
-            setPadding(10,0,6,0)
+            setPadding(8,0,8,0)
         }
         fileName = TextView(this).apply {
             text = currentFile
-            textSize = 13f
+            textSize = 14f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.rgb(230,238,248))
             gravity = Gravity.CENTER_VERTICAL
         }
-        project.addView(fileName, LinearLayout.LayoutParams(0,44,1f))
-        project.addView(button("ANALYZE",72) { analyze() })
-        project.addView(button("PREVIEW",72) { preview() })
-        project.addView(button("SNIPPET",72) { snippets() })
-        root.addView(project)
+        project.addView(fileName, LinearLayout.LayoutParams(150,44))
+        project.addView(button("ANALYZE",78) { analyze() })
+        project.addView(button("PREVIEW",78) { preview() })
+        project.addView(button("FIX",54) { autoFix() })
+        project.addView(button("SNIPPET",78) { snippets() })
+        projectScroll.addView(project)
+        root.addView(projectScroll, LinearLayout.LayoutParams(-1,44))
 
-        val editorFrame = LinearLayout(this).apply {
-            orientation = LinearLayout.HORIZONTAL
+        val editorFrame = FrameLayout(this).apply {
             setBackgroundColor(Color.rgb(12,17,26))
             layoutParams = LinearLayout.LayoutParams(-1,0,1f)
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_LTR
         }
-        lines = TextView(this).apply {
-            typeface = Typeface.MONOSPACE
-            textSize = 12f
-            gravity = Gravity.TOP or Gravity.END
-            setTextColor(Color.rgb(75,91,114))
-            setBackgroundColor(Color.rgb(16,22,32))
-            setPadding(7,14,10,14)
-            text = "1"
-        }
-        editor = EditText(this).apply {
+        editor = CodeEditor(this).apply {
+            layoutDirection = android.view.View.LAYOUT_DIRECTION_LTR
+            textDirection = android.view.View.TEXT_DIRECTION_LTR
             typeface = Typeface.MONOSPACE
             textSize = 14f
             gravity = Gravity.TOP or Gravity.START
             setTextColor(Color.rgb(226,234,244))
             setHintTextColor(Color.rgb(90,108,132))
             setBackgroundColor(Color.TRANSPARENT)
-            setPadding(8,14,14,22)
+            setPadding(58,14,14,22)
             hint = "Dart / Flutter code..."
             setSingleLine(false)
             setHorizontallyScrolling(true)
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or
+                android.text.InputType.TYPE_TEXT_FLAG_MULTI_LINE or
+                android.text.InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS
             setText(template())
         }
-        editorFrame.addView(lines, LinearLayout.LayoutParams(46,-1))
-        editorFrame.addView(editor, LinearLayout.LayoutParams(0,-1,1f))
+        editorFrame.addView(editor, FrameLayout.LayoutParams(-1,-1))
         root.addView(editorFrame)
 
         val tabs = LinearLayout(this).apply {
@@ -157,7 +158,7 @@ class MainActivity : AppCompatActivity() {
         editor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                updateLines()
+                editor.invalidate()
                 highlight()
             }
             override fun afterTextChanged(s: Editable?) = Unit
@@ -178,8 +179,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateLines() {
         if (!::editor.isInitialized) return
-        val n = editor.text.count { it == '\n' } + 1
-        lines.text = (1..n).joinToString("\n") { it.toString() }
+        editor.invalidate()
     }
 
     private fun highlight() {
@@ -214,6 +214,19 @@ class MainActivity : AppCompatActivity() {
         panel.text = r.joinToString("\n") {
             "[" + it.severity + "] line " + it.line + ": " + it.message
         }
+    }
+
+    private fun autoFix() {
+        var source = editor.text.toString()
+        source = source.lines().joinToString("\n") { line ->
+            if (line.trim().startsWith("import ") && !line.trim().endsWith(";")) line + ";" else line
+        }
+        if ((source.contains("Widget") || source.contains("runApp(")) && !source.contains("package:flutter/")) {
+            source = "import 'package:flutter/material.dart';\n\n$source"
+        }
+        editor.setText(source)
+        analyze()
+        panel.append("\n✓ Safe fixes applied")
     }
 
     private fun runCheck() {
