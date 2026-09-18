@@ -23,7 +23,6 @@ jobs:
           java-version: '17'
           cache: gradle
       - name: Install Android SDK
-        shell: bash
         run: |
           set -euo pipefail
           SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -print -quit)"
@@ -31,7 +30,6 @@ jobs:
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Install Gradle
-        shell: bash
         run: |
           set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
@@ -40,7 +38,6 @@ jobs:
       - name: Build
         run: gradle clean assembleDebug assembleRelease --no-daemon --stacktrace
       - name: Verify release
-        shell: bash
         run: |
           set -euo pipefail
           SDK_BUILD="$ANDROID_HOME/build-tools/35.0.0"
@@ -50,7 +47,6 @@ jobs:
           grep -q "package: name='com.reex.idex'" /tmp/badging.txt
           "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$APK"
       - name: Sign release for installation
-        shell: bash
         run: |
           set -euo pipefail
           keytool -genkeypair -v -keystore /tmp/reex-release.jks -storepass reexrelease -keypass reexrelease -alias reex -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=REEX IDE X,O=REEX,C=XX"
