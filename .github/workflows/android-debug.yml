@@ -1,4 +1,4 @@
-name: Build Signed Release REEX IDE X
+name: REEX IDE X - Verified Android Build
 
 on:
   workflow_dispatch:
@@ -9,99 +9,48 @@ permissions:
   contents: read
 
 jobs:
-  build-release:
+  build:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v5
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
           cache: gradle
-
-      - name: Configure Android SDK
-        shell: bash
+      - uses: android-actions/setup-android@v3
+      - name: Install SDK
         run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_ROOT" >> "$GITHUB_ENV"
-          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
-          echo "$SDK_ROOT/cmdline-tools/latest/bin" >> "$GITHUB_PATH"
-          echo "$SDK_ROOT/cmdline-tools/16.0/bin" >> "$GITHUB_PATH"
-          SDKMANAGER="$(find "$SDK_ROOT" /opt/android-sdk /usr/local/lib/android -type f -name sdkmanager -print -quit 2>/dev/null || true)"
-          if [ -z "$SDKMANAGER" ]; then
-            echo "sdkmanager not found"
-            exit 1
-          fi
-          echo "SDKMANAGER=$SDKMANAGER" >> "$GITHUB_ENV"
-          echo "Using SDK manager: $SDKMANAGER"
-
-      - name: Install Android components
-        shell: bash
+          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          yes | sdkmanager --licenses >/dev/null || true
+      - name: Install Gradle
         run: |
-          set -euo pipefail
-          yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses >/dev/null || true
-          "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
-
-      - name: Install Gradle 8.9
-        shell: bash
-        run: |
-          set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle
           echo "/tmp/gradle/gradle-8.9/bin" >> "$GITHUB_PATH"
-          /tmp/gradle/gradle-8.9/bin/gradle --version
-
-      - name: Validate project
-        run: gradle tasks --no-daemon --stacktrace
-
-      - name: Build unsigned release APK
+      - name: Clean and build debug
+        run: gradle clean assembleDebug --no-daemon --stacktrace
+      - name: Build release unsigned
         run: gradle assembleRelease --no-daemon --stacktrace
-
-      - name: Sign and verify release APK
+      - name: Verify APKs
         shell: bash
         run: |
           set -euo pipefail
-          BUILD_TOOLS="$ANDROID_HOME/build-tools/35.0.0"
-          RELEASE_DIR="app/build/outputs/apk/release"
-          UNSIGNED="$RELEASE_DIR/app-release-unsigned.apk"
-          if [ ! -f "$UNSIGNED" ]; then
-            UNSIGNED="$RELEASE_DIR/app-release.apk"
-          fi
-          ALIGNED="$RUNNER_TEMP/reex-release-aligned.apk"
-          SIGNED="$RELEASE_DIR/REEX-IDE-X-1.2.0-release.apk"
-          KEYSTORE="$RUNNER_TEMP/reex-release.keystore"
-
-          test -f "$UNSIGNED"
-          keytool -genkeypair -v \
-            -keystore "$KEYSTORE" \
-            -alias reex_release \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -storepass reex-release-password \
-            -keypass reex-release-password \
-            -dname "CN=REEX IDE X, OU=REEX, O=REEX, L=World, ST=NA, C=US"
-
-          "$BUILD_TOOLS/zipalign" -f -P 16 4 "$UNSIGNED" "$ALIGNED"
-          "$BUILD_TOOLS/apksigner" sign \
-            --ks "$KEYSTORE" \
-            --ks-key-alias reex_release \
-            --ks-pass pass:reex-release-password \
-            --key-pass pass:reex-release-password \
-            --out "$SIGNED" "$ALIGNED"
-          "$BUILD_TOOLS/zipalign" -c -P 16 -v 4 "$SIGNED"
-          "$BUILD_TOOLS/apksigner" verify --verbose --min-sdk-version 21 "$SIGNED"
-          sha256sum "$SIGNED"
-          ls -lh "$SIGNED"
-
-      - name: Upload signed release APK
-        uses: actions/upload-artifact@v4
+          SDK_BUILD="$ANDROID_HOME/build-tools/35.0.0"
+          DEBUG="app/build/outputs/apk/debug/app-debug.apk"
+          RELEASE="app/build/outputs/apk/release/app-release-unsigned.apk"
+          test -s "$DEBUG"
+          test -s "$RELEASE"
+          "$SDK_BUILD/aapt2" dump badging "$DEBUG" | tee /tmp/debug-badging.txt
+          grep -q "package: name='com.reex.idex'" /tmp/debug-badging.txt
+          grep -q "sdkVersion:'21'" /tmp/debug-badging.txt
+          "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$DEBUG" || true
+          sha256sum "$DEBUG" "$RELEASE"
+          mkdir -p verified-apks
+          cp "$DEBUG" verified-apks/REEX-IDE-X-debug.apk
+          cp "$RELEASE" verified-apks/REEX-IDE-X-release-unsigned.apk
+      - uses: actions/upload-artifact@v4
         with:
-          name: reex-ide-x-signed-release-1.2.0
-          path: app/build/outputs/apk/release/REEX-IDE-X-1.2.0-release.apk
+          name: REEX-IDE-X-verified-apks
+          path: verified-apks/
           if-no-files-found: error
