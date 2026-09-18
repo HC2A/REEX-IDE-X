@@ -2,11 +2,13 @@ package com.reex.idex
 
 import android.content.Intent
 import android.graphics.Color
+import android.graphics.Typeface
 import android.net.Uri
 import android.os.Bundle
 import android.text.Editable
 import android.text.TextWatcher
 import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.ArrayAdapter
 import android.widget.Button
@@ -21,116 +23,213 @@ import java.io.BufferedReader
 
 class MainActivity : AppCompatActivity() {
     private lateinit var editor: EditText
+    private lateinit var lineNumbers: TextView
     private lateinit var console: TextView
-    private var openedUri: Uri? = null
-    private var completionPopup: ListPopupWindow? = null
+    private lateinit var preview: TextView
+    private var popup: ListPopupWindow? = null
 
-    private val dartKeywords = arrayOf(
-        "class", "extends", "implements", "with", "mixin", "abstract", "final", "const",
-        "late", "var", "dynamic", "void", "int", "double", "num", "String", "bool",
-        "List", "Map", "Set", "Future", "Stream", "async", "await", "return", "if",
-        "else", "for", "while", "switch", "case", "break", "continue", "import", "part",
-        "library", "Widget", "StatelessWidget", "StatefulWidget", "BuildContext", "build",
-        "Scaffold", "MaterialApp", "Container", "Column", "Row", "Text", "Center", "main"
+    private val completions = arrayOf(
+        "abstract", "async", "await", "bool", "break", "case", "catch", "class", "const", "continue",
+        "double", "else", "enum", "extends", "factory", "false", "final", "finally", "for", "Future",
+        "if", "implements", "import", "in", "int", "interface", "late", "library", "List", "Map",
+        "mixin", "new", "null", "num", "on", "override", "part", "required", "return", "Set",
+        "static", "String", "super", "switch", "this", "throw", "true", "try", "typedef", "var",
+        "void", "while", "with", "Widget", "BuildContext", "StatelessWidget", "StatefulWidget",
+        "MaterialApp", "Scaffold", "AppBar", "Container", "Column", "Row", "Center", "Text", "Padding"
     )
 
-    private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        uri ?: return@registerForActivityResult
+    private val openDocument = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri == null) return@registerForActivityResult
         try {
             contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            openedUri = uri
             editor.setText(contentResolver.openInputStream(uri)?.bufferedReader()?.use(BufferedReader::readText) ?: "")
-            appendLog("Opened Dart/Flutter file: ${uri.lastPathSegment ?: "document"}")
-        } catch (e: Exception) { appendLog("Open failed: ${e.message}") }
+            log("Opened: ${uri.lastPathSegment ?: "source.dart"}")
+        } catch (e: Exception) { log("Open error: ${e.message}") }
     }
 
-    private val saveFile = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
-        uri ?: return@registerForActivityResult
+    private val createDocument = registerForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri == null) return@registerForActivityResult
         try {
             contentResolver.openOutputStream(uri)?.use { it.write(editor.text.toString().toByteArray(Charsets.UTF_8)) }
-            openedUri = uri
-            appendLog("Saved: ${uri.lastPathSegment ?: "source.dart"}")
-        } catch (e: Exception) { appendLog("Save failed: ${e.message}") }
+            log("Saved: ${uri.lastPathSegment ?: "main.dart"}")
+        } catch (e: Exception) { log("Save error: ${e.message}") }
     }
 
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        window.statusBarColor = Color.rgb(10, 12, 16)
-        window.navigationBarColor = Color.rgb(10, 12, 16)
+    override fun onCreate(state: Bundle?) {
+        super.onCreate(state)
+        window.statusBarColor = Color.rgb(10, 12, 18)
+        window.navigationBarColor = Color.rgb(10, 12, 18)
+        buildInterface()
+    }
 
+    private fun buildInterface() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(Color.rgb(14, 16, 21))
+            setBackgroundColor(Color.rgb(13, 16, 22))
         }
-        root.addView(label("REEX IDE X  •  DART / FLUTTER EDITOR", 18f, Color.WHITE, Color.rgb(27, 32, 42), 64))
+        root.addView(header("REEX IDE X  /  DART + FLUTTER", 20f, 64))
 
-        val toolbar = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(4, 4, 4, 4) }
-        toolbar.addView(action("NEW DART") { loadTemplate() }, weightButton())
-        toolbar.addView(action("OPEN") { openFile.launch(arrayOf("text/*", "application/dart", "application/octet-stream", "*/*")) }, weightButton())
-        toolbar.addView(action("SAVE AS") { saveFile.launch("main.dart") }, weightButton())
-        toolbar.addView(action("FORMAT") { formatSource() }, weightButton())
+        val toolbar = horizontalBar()
+        toolbar.addView(button("NEW") { editor.setText(dartTemplate()); log("New Flutter document") })
+        toolbar.addView(button("OPEN") { openDocument.launch(arrayOf("text/*", "application/octet-stream", "*/*")) })
+        toolbar.addView(button("SAVE") { createDocument.launch("main.dart") })
+        toolbar.addView(button("FORMAT") { formatCode() })
+        toolbar.addView(button("RUN VIEW") { updatePreview() })
         root.addView(toolbar)
 
-        root.addView(label("DART SOURCE  •  autocomplete enabled  •  local diagnostics", 12f, Color.LTGRAY, Color.rgb(20, 23, 30), 42))
-        editor = EditText(this).apply {
-            setTextColor(Color.rgb(235, 238, 245))
-            setHintTextColor(Color.GRAY)
-            textSize = 14f
-            gravity = Gravity.TOP or Gravity.START
-            typeface = android.graphics.Typeface.MONOSPACE
-            setPadding(18, 18, 18, 18)
-            setBackgroundColor(Color.rgb(18, 21, 28))
-            hint = "Write Dart or Flutter code..."
-            setText(dartTemplate())
+        root.addView(header("EDITOR  •  Dart syntax assistance  •  offline", 12f, 36))
+        val editorFrame = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setBackgroundColor(Color.rgb(18, 21, 29))
             layoutParams = LinearLayout.LayoutParams(-1, 0, 1f)
         }
-        root.addView(editor)
+        lineNumbers = TextView(this).apply {
+            setTextColor(Color.rgb(90, 103, 125))
+            textSize = 13f
+            gravity = Gravity.TOP or Gravity.END
+            typeface = Typeface.MONOSPACE
+            setPadding(8, 18, 10, 18)
+            setBackgroundColor(Color.rgb(22, 26, 35))
+            text = "1"
+        }
+        editor = EditText(this).apply {
+            setTextColor(Color.rgb(235, 239, 247))
+            setHintTextColor(Color.rgb(105, 115, 132))
+            textSize = 14f
+            typeface = Typeface.MONOSPACE
+            gravity = Gravity.TOP or Gravity.START
+            setPadding(10, 18, 14, 18)
+            setBackgroundColor(Color.TRANSPARENT)
+            hint = "Write Dart / Flutter code here..."
+            setText(dartTemplate())
+            layoutParams = LinearLayout.LayoutParams(0, -1, 1f)
+        }
+        editorFrame.addView(lineNumbers, LinearLayout.LayoutParams(48, -1))
+        editorFrame.addView(editor)
+        root.addView(editorFrame)
 
-        val bottom = LinearLayout(this).apply { orientation = LinearLayout.HORIZONTAL; setPadding(4, 4, 4, 4) }
-        bottom.addView(action("ANALYZE") { analyzeDart() }, weightButton())
-        bottom.addView(action("COMPLETE") { showCompletions() }, weightButton())
-        bottom.addView(action("FLUTTER TEMPLATE") { loadFlutterTemplate() }, weightButton())
-        root.addView(bottom)
+        val actions = horizontalBar()
+        actions.addView(button("ANALYZE") { analyze() })
+        actions.addView(button("COMPLETE") { showCompletions() })
+        actions.addView(button("CLEAR LOG") { console.text = "DIAGNOSTICS" })
+        root.addView(actions)
 
-        console = label("DIAGNOSTICS\n> Dart editor initialized\n> Offline editing enabled\n> No root required", 12f, Color.rgb(150, 225, 175), Color.rgb(7, 10, 13), 150)
-        root.addView(ScrollView(this).apply { addView(console) }, LinearLayout.LayoutParams(-1, 150))
+        root.addView(header("LIVE STRUCTURE PREVIEW", 12f, 34))
+        preview = TextView(this).apply {
+            setTextColor(Color.rgb(180, 220, 255))
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setPadding(12, 8, 12, 8)
+            setBackgroundColor(Color.rgb(8, 12, 18))
+            text = "Preview is ready. Press RUN VIEW."
+        }
+        root.addView(preview, LinearLayout.LayoutParams(-1, 74))
+
+        console = TextView(this).apply {
+            setTextColor(Color.rgb(150, 225, 175))
+            textSize = 12f
+            typeface = Typeface.MONOSPACE
+            setPadding(12, 8, 12, 8)
+            text = "DIAGNOSTICS\n> Final editor initialized\n> Offline mode enabled"
+            setBackgroundColor(Color.rgb(7, 10, 14))
+        }
+        root.addView(ScrollView(this).apply { addView(console) }, LinearLayout.LayoutParams(-1, 94))
         setContentView(root)
 
         editor.addTextChangedListener(object : TextWatcher {
             override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) = Unit
             override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {
-                if ((s?.length ?: 0) > 0 && s!!.last() == '.') showCompletions()
+                updateLineNumbers()
+                if (s?.lastOrNull() == '.') showCompletions()
             }
             override fun afterTextChanged(s: Editable?) = Unit
         })
+        updateLineNumbers()
     }
 
-    private fun weightButton(): LinearLayout.LayoutParams = LinearLayout.LayoutParams(0, 48, 1f)
+    private fun horizontalBar() = LinearLayout(this).apply {
+        orientation = LinearLayout.HORIZONTAL
+        setPadding(3, 3, 3, 3)
+        setBackgroundColor(Color.rgb(25, 30, 40))
+    }
 
-    private fun action(text: String, click: () -> Unit): Button = Button(this).apply {
-        this.text = text
+    private fun button(title: String, action: () -> Unit) = Button(this).apply {
+        text = title
         textSize = 10f
-        setOnClickListener { click() }
+        setOnClickListener { action() }
+        layoutParams = LinearLayout.LayoutParams(0, 46, 1f)
     }
 
-    private fun label(text: String, size: Float, color: Int, background: Int, height: Int): TextView = TextView(this).apply {
+    private fun header(text: String, size: Float, height: Int) = TextView(this).apply {
         this.text = text
         textSize = size
-        setTextColor(color)
-        setBackgroundColor(background)
+        setTextColor(Color.WHITE)
         gravity = Gravity.CENTER_VERTICAL
         setPadding(12, 0, 12, 0)
+        setBackgroundColor(Color.rgb(28, 34, 46))
         layoutParams = LinearLayout.LayoutParams(-1, height)
+    }
+
+    private fun updateLineNumbers() {
+        if (!::editor.isInitialized) return
+        val count = editor.text.toString().count { it == '\n' } + 1
+        lineNumbers.text = (1..count).joinToString("\n") { it.toString() }
+    }
+
+    private fun formatCode() {
+        val result = editor.text.toString().lines().joinToString("\n") { it.trimEnd() }.trimEnd() + "\n"
+        editor.setText(result)
+        editor.setSelection(editor.length())
+        log("Whitespace formatting applied")
+    }
+
+    private fun analyze() {
+        val source = editor.text.toString()
+        val errors = mutableListOf<String>()
+        if (source.isBlank()) errors += "Source is empty"
+        if (source.count { it == '{' } != source.count { it == '}' }) errors += "Unbalanced curly braces"
+        if (source.count { it == '(' } != source.count { it == ')' }) errors += "Unbalanced parentheses"
+        if (source.count { it == '[' } != source.count { it == ']' }) errors += "Unbalanced brackets"
+        if (!source.contains("void main") && source.contains("runApp")) errors += "runApp found without void main"
+        if (errors.isEmpty()) log("Analysis passed: no basic structural errors") else errors.forEach { log("ERROR: $it") }
+    }
+
+    private fun showCompletions() {
+        val list = popup ?: ListPopupWindow(this).also { popup = it }
+        list.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, completions))
+        list.anchorView = editor
+        list.width = 330
+        list.height = ViewGroup.LayoutParams.WRAP_CONTENT
+        list.setOnItemClickListener { _, _, position, _ ->
+            val value = completions[position]
+            val cursor = editor.selectionStart.coerceAtLeast(0)
+            editor.text.insert(cursor, value)
+            list.dismiss()
+        }
+        list.show()
+    }
+
+    private fun updatePreview() {
+        val source = editor.text.toString()
+        val widgets = listOf("MaterialApp", "Scaffold", "AppBar", "Column", "Row", "Container", "Center", "Text")
+            .filter { source.contains(it) }
+        preview.text = if (widgets.isEmpty()) "No Flutter widget structure detected" else
+            "LIVE PREVIEW TREE\n" + widgets.joinToString("\n") { "└─ $it" }
+        log("Live structure preview updated")
+    }
+
+    private fun log(message: String) {
+        if (::console.isInitialized) console.append("\n> $message")
     }
 
     private fun dartTemplate() = """import 'package:flutter/material.dart';
 
 void main() {
-  runApp(const MyApp());
+  runApp(const ReexApp());
 }
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ReexApp extends StatelessWidget {
+  const ReexApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -144,43 +243,4 @@ class MyApp extends StatelessWidget {
   }
 }
 """
-
-    private fun loadTemplate() { editor.setText(dartTemplate()); appendLog("New Dart source created") }
-    private fun loadFlutterTemplate() { editor.setText(dartTemplate()); appendLog("Flutter starter template inserted") }
-
-    private fun formatSource() {
-        val formatted = editor.text.toString().lines().joinToString("\n") { it.trimEnd() }.trimEnd() + "\n"
-        editor.setText(formatted)
-        editor.setSelection(editor.length())
-        appendLog("Basic formatting applied")
-    }
-
-    private fun analyzeDart() {
-        val source = editor.text.toString()
-        val errors = mutableListOf<String>()
-        if (source.isBlank()) errors += "Source is empty"
-        if (source.count { it == '{' } != source.count { it == '}' }) errors += "Unbalanced curly braces"
-        if (source.count { it == '(' } != source.count { it == ')' }) errors += "Unbalanced parentheses"
-        if (source.contains("import 'package:flutter/")) appendLog("Flutter import detected")
-        if (source.contains("void main")) appendLog("Dart entry point detected")
-        if (errors.isEmpty()) appendLog("Analysis passed: no basic syntax issues detected")
-        else errors.forEach { appendLog("ERROR: $it") }
-    }
-
-    private fun showCompletions() {
-        val popup = completionPopup ?: ListPopupWindow(this).also { completionPopup = it }
-        popup.setAdapter(ArrayAdapter(this, android.R.layout.simple_list_item_1, dartKeywords))
-        popup.anchorView = editor
-        popup.width = 360
-        popup.height = ViewGroup.LayoutParams.WRAP_CONTENT
-        popup.setOnItemClickListener { _, _, position, _ ->
-            val word = dartKeywords[position]
-            val start = editor.selectionStart.coerceAtLeast(0)
-            editor.text.insert(start, word)
-            popup.dismiss()
-        }
-        popup.show()
-    }
-
-    private fun appendLog(message: String) { console.append("\n> $message") }
 }
