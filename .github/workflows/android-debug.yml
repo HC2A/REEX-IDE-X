@@ -18,13 +18,19 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - uses: android-actions/setup-android@v3
-      - name: Install SDK
+      - name: Configure Android SDK
+        uses: android-actions/setup-android@v3
+        continue-on-error: false
+      - name: Install SDK packages
+        shell: bash
         run: |
-          sdkmanager "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          set -euo pipefail
           yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Install Gradle
+        shell: bash
         run: |
+          set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle
           echo "/tmp/gradle/gradle-8.9/bin" >> "$GITHUB_PATH"
@@ -44,7 +50,7 @@ jobs:
           "$SDK_BUILD/aapt2" dump badging "$DEBUG" | tee /tmp/debug-badging.txt
           grep -q "package: name='com.reex.idex'" /tmp/debug-badging.txt
           grep -q "sdkVersion:'21'" /tmp/debug-badging.txt
-          "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$DEBUG" || true
+          "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$DEBUG"
           sha256sum "$DEBUG" "$RELEASE"
           mkdir -p verified-apks
           cp "$DEBUG" verified-apks/REEX-IDE-X-debug.apk
