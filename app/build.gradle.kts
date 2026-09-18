@@ -11,8 +11,9 @@ android {
         applicationId = "com.reex.idex"
         minSdk = 21
         targetSdk = 35
-        versionCode = 3
-        versionName = "1.0.0-final"
+        versionCode = 4
+        versionName = "1.1.0-final"
+        resourceConfigurations += listOf("en", "ar")
     }
 
     buildTypes {
