@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+env:
+  ANDROID_HOME: /usr/local/lib/android/sdk
+  ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -18,15 +22,21 @@ jobs:
           distribution: temurin
           java-version: '17'
           cache: gradle
-      - name: Configure Android SDK
-        uses: android-actions/setup-android@v3
-        continue-on-error: false
+      - name: Inspect Android SDK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          test -d "$ANDROID_HOME"
+          command -v sdkmanager || true
+          find "$ANDROID_HOME" -maxdepth 3 -type f -name sdkmanager -o -name aapt2 | head -20
       - name: Install SDK packages
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager | head -1)"
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Install Gradle
         shell: bash
         run: |
