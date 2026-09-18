@@ -1,20 +1,31 @@
 # REEX IDE X
 
-Native Android IDE foundation for on-device development.
+Native Android IDE for mobile development, designed for ARM64 devices and no root requirement.
 
-## Phase A
+## Current engineering milestone
 
-This first milestone provides:
+- Native Kotlin Android application shell
+- Persistent app-private workspaces
+- SAF-compatible workspace URI persistence
+- Dependency-free structural source diagnostics
+- Explicit toolchain capability model (no fake build/run claims)
+- Dart/Flutter-oriented editor, snippets, completion and widget inspection
+- Reproducible GitHub Actions APK verification
 
-- Native Kotlin Android application foundation
-- Professional dark IDE shell
-- Project/workspace navigation foundation
-- Editor and terminal placeholder surfaces
-- Modular architecture prepared for real toolchains
-- ARM64-compatible Android build configuration
+## Architecture direction
 
-Later milestones will add real SDK management, process execution, Dart/Flutter integration, Gradle builds, diagnostics, and APK generation.
+The project is being developed in layers:
+
+1. Workspace and file-system abstraction
+2. Editor/document model and diagnostics
+3. Toolchain discovery and installation adapters
+4. Terminal/process execution abstraction
+5. Dart/Flutter project lifecycle
+6. Build/export and APK verification
+7. Device/preview integration where Android platform constraints permit
+
+Important: desktop Flutter SDK binaries cannot simply be executed on Android ARM64. The implementation therefore separates UI/editor functionality from toolchain backends and will only expose build/run capabilities when a compatible backend is actually available.
 
 ## Build
 
-Open the repository in Android Studio or AIDE and sync Gradle.
+Open in Android Studio or AIDE, or use the repository GitHub Actions workflow. The verified workflow produces debug and unsigned release APK artifacts.
