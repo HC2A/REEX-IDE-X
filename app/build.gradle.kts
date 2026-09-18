@@ -9,16 +9,21 @@ android {
 
     defaultConfig {
         applicationId = "com.reex.idex"
-        minSdk = 21
+        minSdk = 23
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.1.0-final"
+        versionCode = 10
+        versionName = "2.0.0-real-foundation"
         resourceConfigurations += listOf("en", "ar")
     }
 
     buildTypes {
+        debug {
+            isDebuggable = true
+            isMinifyEnabled = false
+        }
         release {
             isMinifyEnabled = false
+            isShrinkResources = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -31,8 +36,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlinOptions { jvmTarget = "17" }
+
+    packaging {
+        resources.excludes += setOf("META-INF/DEPENDENCIES", "META-INF/LICENSE", "META-INF/LICENSE.txt", "META-INF/NOTICE", "META-INF/NOTICE.txt")
     }
 }
 
