@@ -16,8 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.reex.idex.core.DartSourceAnalyzer
 
 class MainActivity : AppCompatActivity() {
-    private lateinit var editor: EditText
-    private lateinit var lines: TextView
+    private lateinit var editor: CodeEditor
     private lateinit var panel: TextView
     private lateinit var fileName: TextView
     private var currentFile = "main.dart"
@@ -69,23 +68,36 @@ class MainActivity : AppCompatActivity() {
         val header = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(12,0,8,0)
+            setPadding(14,0,8,0)
             setBackgroundColor(Color.rgb(19,27,39))
         }
         header.addView(TextView(this).apply {
             text = "REEX IDE X"
-            textSize = 18f
+            textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER_VERTICAL
-        }, LinearLayout.LayoutParams(0,56,1f))
-        header.addView(button("NEW",52) { newFile() })
-        header.addView(button("OPEN",58) { openFile.launch(arrayOf("*/*")) })
-        header.addView(button("SAVE",58) { saveFile.launch(currentFile) })
-        header.addView(button("RUN",52) { runCheck() })
-        header.addView(button("ع/EN",58) { arabic = !arabic; panel.text = if (arabic) "العربية مفعّلة" else "English enabled" })
+        }, LinearLayout.LayoutParams(0,58,1f))
+        header.addView(button("⌕",46) { find() })
+        header.addView(button("⋮",46) { more() })
         root.addView(header)
 
+        val commandScroll = HorizontalScrollView(this).apply {
+            isHorizontalScrollBarEnabled = false
+            setBackgroundColor(Color.rgb(13,19,28))
+        }
+        val commandRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            setPadding(7,5,7,5)
+        }
+        listOf(
+            "NEW" to { newFile() }, "OPEN" to { openFile.launch(arrayOf("*/*")) },
+            "SAVE" to { saveFile.launch(currentFile) }, "UNDO" to { editor.undo() },
+            "REDO" to { editor.redo() }, "RUN" to { runCheck() },
+            "ع / EN" to { arabic = !arabic; panel.text = if (arabic) "العربية مفعّلة" else "English enabled" }
+        ).forEach { (name, click) -> commandRow.addView(button(name,0,click)) }
+        commandScroll.addView(commandRow)
+        root.addView(commandScroll, LinearLayout.LayoutParams(-1,48))
         val projectScroll = HorizontalScrollView(this).apply {
             isHorizontalScrollBarEnabled = false
             setBackgroundColor(Color.rgb(25,34,49))
