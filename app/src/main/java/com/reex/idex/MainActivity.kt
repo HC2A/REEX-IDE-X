@@ -78,8 +78,8 @@ class MainActivity : AppCompatActivity() {
             setTextColor(Color.WHITE)
             gravity = Gravity.CENTER_VERTICAL
         }, LinearLayout.LayoutParams(0,58,1f))
-        header.addView(button("⌕",46) { find() })
-        header.addView(button("⋮",46) { more() })
+        header.addView(button("⌕",46) { analyze() })
+        header.addView(button("⋮",46) { snippets() })
         root.addView(header)
 
         val commandScroll = HorizontalScrollView(this).apply {
