@@ -1,6 +1,12 @@
 package com.reex.idex
 
 import android.os.Bundle
+import android.content.Intent
+import android.net.Uri
+import androidx.core.content.FileProvider
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +36,7 @@ import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.FlutterRuntimeBridge
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.material3.OutlinedTextField
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
@@ -112,6 +119,11 @@ private fun ReexIdeScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
+    var showCloudBuild by remember { mutableStateOf(false) }
+    var cloudMessage by remember { mutableStateOf("") }
+    var cloudBusy by remember { mutableStateOf(false) }
+    var cloudRepo by remember { mutableStateOf("HC2A/REEX-IDE-X") }
+    var cloudArch by remember { mutableStateOf("arm64-v8a") }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
@@ -195,6 +207,11 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
+                FilterChip(
+                    selected = false,
+                    onClick = { showCloudBuild = true },
+                    label = { Text("CLOUD BUILD") }
+                )
                 FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
             }
 
@@ -355,6 +372,94 @@ private fun ReexIdeScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showCompletion = false }) {
+                    Text(if (arabic) "إغلاق" else "Close")
+                }
+            }
+        )
+    }
+
+
+    if (showCloudBuild) {
+        AlertDialog(
+            onDismissRequest = { if (!cloudBusy) showCloudBuild = false },
+            title = { Text(if (arabic) "البناء السحابي • GitHub" else "Cloud Build • GitHub") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        if (arabic) "التحرير والتحليل والإكمال والمعاينة تعمل محلياً. الإنترنت يُستخدم هنا للبناء فقط."
+                        else "Editing, analysis, completion and preview stay local. Internet is used here only for the build."
+                    )
+                    OutlinedTextField(
+                        value = cloudRepo,
+                        onValueChange = { cloudRepo = it },
+                        enabled = !cloudBusy,
+                        label = { Text("GitHub repository") },
+                        singleLine = true
+                    )
+                    Text("Architecture: " + cloudArch, fontSize = 12.sp)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        listOf("arm64-v8a", "armeabi-v7a", "x86_64").forEach { arch ->
+                            FilterChip(
+                                selected = cloudArch == arch,
+                                onClick = { cloudArch = arch },
+                                label = { Text(arch) },
+                                enabled = !cloudBusy
+                            )
+                        }
+                    }
+                    if (cloudMessage.isNotBlank()) {
+                        Text(cloudMessage, fontSize = 12.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    enabled = !cloudBusy,
+                    onClick = {
+                        val store = com.reex.idex.core.GitHubCredentialStore(activity)
+                        val token = store.token()
+                        if (token.isNullOrBlank()) {
+                            cloudMessage = if (arabic) {
+                                "اربط GitHub أولاً من زر AI/الإعدادات بإدخال Fine-grained token بصلاحيات Contents:write و Actions:write و Workflows:write."
+                            } else {
+                                "Connect GitHub first with a fine-grained token: Contents:write, Actions:write and Workflows:write."
+                            }
+                        } else {
+                            cloudBusy = true
+                            cloudMessage = if (arabic) "جاري الرفع والبناء…" else "Uploading and building…"
+                            CoroutineScope(Dispatchers.Main).launch {
+                                runCatching {
+                                    com.reex.idex.core.GitHubCloudBuilder(activity, token).build(
+                                        repository = cloudRepo.trim(),
+                                        source = activity.editor?.text?.toString().orEmpty(),
+                                        architecture = cloudArch,
+                                        onProgress = { message -> cloudMessage = message }
+                                    )
+                                }.onSuccess { result ->
+                                    cloudBusy = false
+                                    cloudMessage = if (arabic) "تم البناء ✓  • APK جاهز" else "Build succeeded ✓  • APK ready"
+                                    val uri = FileProvider.getUriForFile(
+                                        activity,
+                                        "com.reex.idex.fileprovider",
+                                        result.apk
+                                    )
+                                    activity.startActivity(
+                                        Intent(Intent.ACTION_VIEW).apply {
+                                            setDataAndType(uri, "application/vnd.android.package-archive")
+                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                        }
+                                    )
+                                }.onFailure { error ->
+                                    cloudBusy = false
+                                    cloudMessage = error.message ?: "Cloud build failed"
+                                }
+                            }
+                        }
+                    }
+                ) { Text(if (cloudBusy) "BUILDING…" else "BUILD") }
+            },
+            dismissButton = {
+                TextButton(enabled = !cloudBusy, onClick = { showCloudBuild = false }) {
                     Text(if (arabic) "إغلاق" else "Close")
                 }
             }
