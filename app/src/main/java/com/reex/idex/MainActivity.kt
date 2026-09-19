@@ -14,6 +14,8 @@ import androidx.compose.material3.*
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -30,7 +32,7 @@ import androidx.compose.ui.window.DialogProperties
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
-    private var currentFile = "main.dart"
+    private var currentFile by mutableStateOf("main.dart")
     private var arabic by mutableStateOf(true)
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -241,28 +243,62 @@ private fun ReexIdeScreen(
     }
 
     if (showPreview) {
-        AlertDialog(
+        Dialog(
             onDismissRequest = { showPreview = false },
-            title = { Text(if (arabic) "المعاينة المحلية" else "Offline Preview") },
-            text = {
-                Column {
-                    Text(
-                        Regex("""Text\(['"]([^'"]+)""").find(code)?.groupValues?.getOrNull(1)
-                            ?: "Hello Flutter"
-                    )
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        if (arabic) "هذه محاكاة محلية وليست تشغيل Flutter فعلياً."
-                        else "Local simulator only; arbitrary Flutter execution needs a Flutter toolchain."
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showPreview = false }) {
-                    Text(if (arabic) "إغلاق" else "Close")
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(Modifier.fillMaxSize(), color = Color(0xFF050914)) {
+                Column(Modifier.fillMaxSize()) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text("REEX AIDE • LIVE PREVIEW", fontWeight = FontWeight.Bold)
+                            Text(
+                                if (arabic) "محاكاة محلية — بدون ادعاء تشغيل Flutter الحقيقي"
+                                else "Local simulator — full Flutter runtime not embedded",
+                                fontSize = 11.sp
+                            )
+                        }
+                        TextButton(onClick = { showPreview = false }) {
+                            Text(if (arabic) "إغلاق" else "CLOSE")
+                        }
+                    }
+                    Box(
+                        Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Surface(
+                            Modifier.fillMaxWidth().fillMaxHeight(0.88f),
+                            shape = MaterialTheme.shapes.large,
+                            color = Color(0xFFF8FAFC)
+                        ) {
+                            Column(
+                                Modifier.fillMaxSize().padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text(
+                                    "REEX AIDE",
+                                    fontSize = 28.sp,
+                                    color = Color(0xFF0F172A),
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(Modifier.height(24.dp))
+                                Text(
+                                    Regex("""Text\(['"]([^'"]+)""").find(code)?.groupValues?.getOrNull(1)
+                                        ?: "Hello Flutter",
+                                    fontSize = 22.sp,
+                                    color = Color(0xFF111827)
+                                )
+                                Spacer(Modifier.height(20.dp))
+                                Text("LIVE PREVIEW / SIMULATOR", color = Color(0xFF64748B), fontSize = 11.sp)
+                            }
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 
 
@@ -300,7 +336,9 @@ private fun ReexIdeScreen(
                     suggestions.forEach { item ->
                         TextButton(
                             onClick = {
-                                activity.editor?.insertText(item.insertText, item.insertText.length)
+                                val base = activity.editor?.text?.toString().orEmpty()
+                                val separator = if (base.isEmpty() || base.endsWith("\n")) "" else "\n"
+                                activity.editor?.setText(base + separator + item.insertText)
                                 showCompletion = false
                             },
                             modifier = Modifier.fillMaxWidth()
