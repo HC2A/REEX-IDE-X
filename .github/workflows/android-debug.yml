@@ -13,6 +13,8 @@ permissions:
 env:
   ANDROID_HOME: /usr/local/lib/android/sdk
   ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+  FLUTTER_VERSION: 3.47.3
+  FLUTTER_SHA256: 988665565cad9091db1baa54bf6d3868bb40e29719592f3c3a164deefd4208e1
 
 jobs:
   build:
@@ -36,8 +38,35 @@ jobs:
           set -euo pipefail
           curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle
-          echo "/tmp/gradle/gradle-8.13/bin" >> "$GITHUB_PATH"
-      - name: Build
+          echo "/tmp/gradle/gradle-8.13/bin" >> "${GITHUB_PATH}"
+      - name: Install Flutter stable toolchain
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz
+          echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter.tar.xz -C /opt
+          echo "/opt/flutter/bin" >> "${GITHUB_PATH}"
+          flutter --version
+          flutter config --no-analytics
+          flutter precache --android
+      - name: Build embedded Flutter runtime AAR
+        run: |
+          set -euo pipefail
+          rm -rf /tmp/reex_flutter_runtime
+          flutter create -t module --org com.reex.runtime --project-name flutter_runtime /tmp/reex_flutter_runtime
+          cp flutter_runtime/pubspec.yaml /tmp/reex_flutter_runtime/pubspec.yaml
+          rm -rf /tmp/reex_flutter_runtime/lib
+          mkdir -p /tmp/reex_flutter_runtime/lib
+          cp flutter_runtime/lib/main.dart /tmp/reex_flutter_runtime/lib/main.dart
+          cd /tmp/reex_flutter_runtime
+          flutter pub get
+          flutter build aar
+          test -d build/host/outputs/repo
+          rm -rf "${GITHUB_WORKSPACE}/app/flutter_repo"
+          mkdir -p "${GITHUB_WORKSPACE}/app/flutter_repo"
+          cp -R build/host/outputs/repo/. "${GITHUB_WORKSPACE}/app/flutter_repo/"
+          find "${GITHUB_WORKSPACE}/app/flutter_repo" -type f | sort | head -50
+      - name: Build Android host with Flutter Engine
         run: gradle clean assembleDebug assembleRelease --no-daemon --stacktrace
       - name: Verify release
         run: |
@@ -48,6 +77,10 @@ jobs:
           "$SDK_BUILD/aapt2" dump badging "$APK" | tee /tmp/badging.txt
           grep -q "package: name='com.reex.idex'" /tmp/badging.txt
           "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$APK"
+          unzip -l "$APK" | grep -q "lib/arm64-v8a/libflutter.so"
+          unzip -l "$APK" | grep -q "lib/armeabi-v7a/libflutter.so"
+          unzip -l "$APK" | grep -q "lib/x86_64/libflutter.so"
+          "$SDK_BUILD/aapt2" dump xmltree "$APK" AndroidManifest.xml | grep -q "flutterEmbedding"
       - name: Sign release for installation
         run: |
           set -euo pipefail
@@ -58,8 +91,16 @@ jobs:
           mkdir -p verified-apks
           cp app/build/outputs/apk/debug/app-debug.apk verified-apks/REEX-IDE-X-debug.apk
           cp app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk verified-apks/REEX-IDE-X-release-signed.apk
+      - name: Verify Flutter runtime in final APKs
+        run: |
+          set -euo pipefail
+          for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk; do
+            echo "=== $apk ==="
+            unzip -l "$apk" | grep "lib/arm64-v8a/libflutter.so"
+            "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree "$apk" AndroidManifest.xml | grep -A2 -B2 "flutterEmbedding" || true
+          done
       - uses: actions/upload-artifact@v4
         with:
-          name: REEX-IDE-X-v3-verified-apks
+          name: REEX-IDE-X-v4-flutter-runtime-apks
           path: verified-apks/
           if-no-files-found: error
