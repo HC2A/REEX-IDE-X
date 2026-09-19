@@ -22,6 +22,11 @@ import io.github.rosemoe.sora.event.ContentChangeEvent
 import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.subscribeAlways
 import com.reex.idex.core.DartSourceAnalyzer
+import com.reex.idex.core.CompletionEngine
+import com.reex.idex.core.LanguageRegistry
+import com.reex.idex.core.ProjectTree
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
@@ -102,6 +107,8 @@ private fun ReexIdeScreen(
     var code by remember { mutableStateOf(DEFAULT_DART) }
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
+    var showProject by remember { mutableStateOf(false) }
+    var showCompletion by remember { mutableStateOf(false) }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
@@ -114,8 +121,8 @@ private fun ReexIdeScreen(
             TopAppBar(
                 title = {
                     Column {
-                        Text("REEX IDE X", fontSize = 20.sp)
-                        Text(fileName + "  •  Dart / Flutter", fontSize = 11.sp)
+                        Text("REEX AIDE v3", fontSize = 20.sp)
+                        Text(fileName + "  •  " + LanguageRegistry.detect(fileName).label, fontSize = 11.sp)
                     }
                 },
                 actions = {
@@ -126,6 +133,8 @@ private fun ReexIdeScreen(
                     }) { Text("NEW") }
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
+                    TextButton(onClick = { showProject = true }) { Text("TREE") }
+                    TextButton(onClick = { showCompletion = true }) { Text("AI") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -163,6 +172,8 @@ private fun ReexIdeScreen(
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
                 FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("PREVIEW") })
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
+                FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
+                FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
                 FilterChip(selected = false, onClick = {
                     val current = activity.editor?.text?.toString().orEmpty()
                     val lines = current.lines().joinToString("\n") { line ->
@@ -248,6 +259,62 @@ private fun ReexIdeScreen(
             },
             confirmButton = {
                 TextButton(onClick = { showPreview = false }) {
+                    Text(if (arabic) "إغلاق" else "Close")
+                }
+            }
+        )
+    }
+
+
+    if (showProject) {
+        AlertDialog(
+            onDismissRequest = { showProject = false },
+            title = { Text(if (arabic) "شجرة المشروع" else "Project Tree") },
+            text = {
+                LazyColumn {
+                    item { Text("my_app/", fontWeight = FontWeight.Bold) }
+                    items(ProjectTree.fromDart(code)) { node ->
+                        Text(
+                            ("  ".repeat(node.depth)) + (if (node.isFolder) "▸ " else "• ") + node.name,
+                            fontSize = 12.sp
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showProject = false }) {
+                    Text(if (arabic) "إغلاق" else "Close")
+                }
+            }
+        )
+    }
+
+    if (showCompletion) {
+        val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
+        val suggestions = CompletionEngine.suggest(prefix)
+        AlertDialog(
+            onDismissRequest = { showCompletion = false },
+            title = { Text(if (arabic) "الإكمال الذكي" else "Smart Completion") },
+            text = {
+                Column {
+                    suggestions.forEach { item ->
+                        TextButton(
+                            onClick = {
+                                activity.editor?.insertText(item.insertText, item.insertText.length)
+                                showCompletion = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column(Modifier.fillMaxWidth()) {
+                                Text(item.label, fontWeight = FontWeight.Bold)
+                                Text(item.detail, fontSize = 11.sp)
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showCompletion = false }) {
                     Text(if (arabic) "إغلاق" else "Close")
                 }
             }

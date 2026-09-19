@@ -3,6 +3,8 @@ name: REEX IDE X - Verified Release Build
 on:
   workflow_dispatch:
   push:
+    branches: [ main, reex-aide-v3-rebuild ]
+  pull_request:
     branches: [ main ]
 
 permissions:
