@@ -46,6 +46,7 @@ jobs:
           echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
           tar -xJf /tmp/flutter.tar.xz -C /opt
           echo "/opt/flutter/bin" >> "${GITHUB_PATH}"
+          export PATH="/opt/flutter/bin:$PATH"
           flutter --version
           flutter config --no-analytics
           flutter precache --android
