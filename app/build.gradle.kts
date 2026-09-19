@@ -77,7 +77,7 @@ dependencies {
     implementation("androidx.core:core-ktx:1.17.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
 
-    implementation("io.github.rosemoe.sora:editor:0.24.4")
-    implementation("io.github.rosemoe.sora:language-textmate:0.24.4")
-    implementation("io.github.rosemoe.sora:oniguruma-native:0.24.4")
+    implementation("io.github.rosemoe:editor:0.24.4")
+    implementation("io.github.rosemoe:language-textmate:0.24.4")
+    implementation("io.github.rosemoe:oniguruma-native:0.24.4")
 }
