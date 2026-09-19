@@ -1,11 +1,20 @@
 package com.reex.idex.core
 
+enum class Severity { ERROR, WARNING, INFO }
+
+data class Diagnostic(
+    val severity: Severity,
+    val message: String,
+    val line: Int,
+    val column: Int
+)
+
 object DartSourceAnalyzer {
     private val flutterSymbols = setOf(
-        "Widget","BuildContext","StatelessWidget","StatefulWidget","State",
-        "MaterialApp","Scaffold","AppBar","Container","Column","Row","Center",
-        "Text","Padding","Expanded","ListView","GridView","SafeArea","Theme",
-        "Navigator","FutureBuilder","StreamBuilder","TextField","ElevatedButton"
+        "Widget", "BuildContext", "StatelessWidget", "StatefulWidget", "State",
+        "MaterialApp", "Scaffold", "AppBar", "Container", "Column", "Row", "Center",
+        "Text", "Padding", "Expanded", "ListView", "GridView", "SafeArea", "Theme",
+        "Navigator", "FutureBuilder", "StreamBuilder", "TextField", "ElevatedButton"
     )
 
     fun analyze(source: String): List<Diagnostic> {
@@ -13,29 +22,31 @@ object DartSourceAnalyzer {
             return listOf(Diagnostic(Severity.WARNING, "Document is empty", 1, 1))
         }
 
-        val out = mutableListOf<Diagnostic>()
-        val code = maskStringsAndComments(source)
-        checkBrackets(code, out)
+        val masked = maskStringsAndComments(source)
+        val result = mutableListOf<Diagnostic>()
+        checkBrackets(masked, result)
 
         source.lines().forEachIndexed { index, line ->
-            val trimmed = line.trim()
-            if (trimmed.startsWith("import ") && !trimmed.endsWith(";")) {
-                out += Diagnostic(Severity.WARNING, "Import statement should end with ';'", index + 1, 1)
+            val t = line.trim()
+            if (t.startsWith("import ") && !t.endsWith(";")) {
+                result += Diagnostic(Severity.WARNING, "Import statement should end with ';'", index + 1, 1)
             }
         }
 
-        val hasMain = Regex("""\bvoid\s+main\s*\(""").containsMatchIn(code)
-        if (Regex("""\brunApp\s*\(""").containsMatchIn(code) && !hasMain) {
-            out += Diagnostic(Severity.ERROR, "runApp() is present but void main() was not found", 1, 1)
+        val hasMain = Regex("""\bvoid\s+main\s*\(""").containsMatchIn(masked)
+        if (Regex("""\brunApp\s*\(""").containsMatchIn(masked) && !hasMain) {
+            result += Diagnostic(Severity.ERROR, "runApp() is present but void main() was not found", 1, 1)
         }
 
-        val usesFlutter = flutterSymbols.any { Regex("""\b${{Regex.escape(it)}\b""").containsMatchIn(code) }
+        val usesFlutter = flutterSymbols.any {
+            Regex("\\b" + Regex.escape(it) + "\\b").containsMatchIn(masked)
+        }
         if (usesFlutter && !Regex("""package:flutter/""").containsMatchIn(source)) {
-            out += Diagnostic(Severity.ERROR, "Flutter symbols are used without a package:flutter import", 1, 1)
+            result += Diagnostic(Severity.ERROR, "Flutter symbols are used without a package:flutter import", 1, 1)
         }
 
         if (source.contains("package:flutter/") && !source.contains("package:flutter/material.dart")) {
-            out += Diagnostic(
+            result += Diagnostic(
                 Severity.INFO,
                 "Flutter package detected; specialized package imports may be preferable",
                 1,
@@ -43,7 +54,7 @@ object DartSourceAnalyzer {
             )
         }
 
-        return out.distinctBy { Triple(it.severity, it.message, it.line) }
+        return result.distinctBy { Triple(it.severity, it.message, it.line) }
             .ifEmpty { listOf(Diagnostic(Severity.INFO, "No structural issues detected", 1, 1)) }
     }
 
@@ -53,32 +64,30 @@ object DartSourceAnalyzer {
         var quote: Char? = null
         var triple = false
         var lineComment = false
-        var blockCommentDepth = 0
+        var blockDepth = 0
 
-        fun appendMasked(c: Char) {
+        fun mask(c: Char) {
             out.append(if (c == '\n') '\n' else ' ')
         }
 
         while (i < source.length) {
             val c = source[i]
-            val next = if (i + 1 < source.length) source[i + 1] else '\u0000'
+            val n = if (i + 1 < source.length) source[i + 1] else '\u0000'
 
             if (lineComment) {
-                appendMasked(c)
+                mask(c)
                 if (c == '\n') lineComment = false
                 i++
                 continue
             }
 
-            if (blockCommentDepth > 0) {
-                if (c == '/' && next == '*') {
-                    blockCommentDepth++
-                    appendMasked(c); appendMasked(next); i += 2
-                } else if (c == '*' && next == '/') {
-                    blockCommentDepth--
-                    appendMasked(c); appendMasked(next); i += 2
+            if (blockDepth > 0) {
+                if (c == '/' && n == '*') {
+                    mask(c); mask(n); i += 2; blockDepth++
+                } else if (c == '*' && n == '/') {
+                    mask(c); mask(n); i += 2; blockDepth--
                 } else {
-                    appendMasked(c); i++
+                    mask(c); i++
                 }
                 continue
             }
@@ -86,69 +95,60 @@ object DartSourceAnalyzer {
             if (quote != null) {
                 if (triple && c == quote && i + 2 < source.length &&
                     source[i + 1] == quote && source[i + 2] == quote) {
-                    appendMasked(c); appendMasked(source[i + 1]); appendMasked(source[i + 2])
+                    mask(c); mask(source[i + 1]); mask(source[i + 2])
                     i += 3; quote = null; triple = false
                 } else if (!triple && c == '\\') {
-                    appendMasked(c)
-                    if (i + 1 < source.length) appendMasked(source[i + 1])
+                    mask(c)
+                    if (i + 1 < source.length) mask(source[i + 1])
                     i += 2
                 } else if (!triple && c == quote) {
-                    appendMasked(c); i++; quote = null
+                    mask(c); i++; quote = null
                 } else {
-                    appendMasked(c); i++
+                    mask(c); i++
                 }
                 continue
             }
 
-            if (c == '/' && next == '/') {
-                appendMasked(c); appendMasked(next); i += 2; lineComment = true; continue
+            if (c == '/' && n == '/') {
+                mask(c); mask(n); i += 2; lineComment = true
+                continue
             }
 
-            if (c == '/' && next == '*') {
-                appendMasked(c); appendMasked(next); i += 2; blockCommentDepth = 1; continue
-            }
-
-            if ((c == 'r' || c == 'R') && i + 1 < source.length &&
-                (source[i + 1] == '\'' || source[i + 1] == '"')) {
-                out.append(c); i++
-                quote = source[i]
-                triple = i + 2 < source.length && source[i + 1] == quote && source[i + 2] == quote
-                appendMasked(quote); i++
-                if (triple) {
-                    appendMasked(source[i]); appendMasked(source[i + 1]); i += 2
-                }
+            if (c == '/' && n == '*') {
+                mask(c); mask(n); i += 2; blockDepth = 1
                 continue
             }
 
             if (c == '\'' || c == '"') {
                 quote = c
                 triple = i + 2 < source.length && source[i + 1] == c && source[i + 2] == c
-                appendMasked(c); i++
+                mask(c); i++
                 if (triple) {
-                    appendMasked(source[i]); appendMasked(source[i + 1]); i += 2
+                    mask(source[i]); mask(source[i + 1]); i += 2
                 }
                 continue
             }
 
-            out.append(c); i++
+            out.append(c)
+            i++
         }
+
         return out.toString()
     }
 
-    private fun checkBrackets(source: String, out: MutableList<Diagnostic>) {
+    private fun checkBrackets(source: String, result: MutableList<Diagnostic>) {
         val stack = ArrayDeque<Pair<Char, Int>>()
-        val openToClose = mapOf('(' to ')', '[' to ']', '{' to '}')
-        val closing = setOf(')', ']', '}')
+        val pairs = mapOf('(' to ')', '[' to ']', '{' to '}')
 
         source.forEachIndexed { index, c ->
-            if (openToClose.containsKey(c)) {
+            if (c in pairs.keys) {
                 stack.addLast(c to index)
-            } else if (c in closing) {
-                val expected = stack.removeLastOrNull()
-                if (expected == null || openToClose[expected.first] != c) {
+            } else if (c in pairs.values) {
+                val top = stack.removeLastOrNull()
+                if (top == null || pairs[top.first] != c) {
                     val line = source.take(index).count { it == '\n' } + 1
-                    out += Diagnostic(Severity.ERROR, "Unexpected closing '$c'", line, 1)
-                    if (expected != null) stack.clear()
+                    result += Diagnostic(Severity.ERROR, "Unexpected closing '$c'", line, 1)
+                    if (top != null) stack.clear()
                 }
             }
         }
@@ -156,7 +156,7 @@ object DartSourceAnalyzer {
         while (stack.isNotEmpty()) {
             val (open, index) = stack.removeLast()
             val line = source.take(index).count { it == '\n' } + 1
-            out += Diagnostic(Severity.ERROR, "Unclosed '$open'", line, 1)
+            result += Diagnostic(Severity.ERROR, "Unclosed '$open'", line, 1)
         }
     }
 }
