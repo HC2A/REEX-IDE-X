@@ -1,0 +1,73 @@
+name: REEX IDE X Cloud Flutter Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: Android target architecture
+        required: true
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86_64
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v4
+      - name: Install Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install Flutter
+        shell: bash
+        env:
+          FLUTTER_VERSION: 3.47.3
+          FLUTTER_SHA256: 988665565cad9091db1baa54bf6d3868bb40e29719592f3c3a164deefd4208e1
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz
+          echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter.tar.xz -C /opt
+          echo "/opt/flutter/bin" >> "$GITHUB_PATH"
+          export PATH="/opt/flutter/bin:$PATH"
+          flutter config --no-analytics
+          flutter precache --android
+          flutter --version
+      - name: Materialize REEX project
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f .reex/project/pubspec.yaml
+          test -f .reex/project/lib/main.dart
+          rm -rf /tmp/reex_project
+          cp -R .reex/project /tmp/reex_project
+      - name: Resolve Dart packages
+        working-directory: /tmp/reex_project
+        run: flutter pub get
+      - name: Build release APK
+        working-directory: /tmp/reex_project
+        env:
+          TARGET_PLATFORM: ${{ inputs.architecture == 'arm64-v8a' && 'android-arm64' || inputs.architecture == 'armeabi-v7a' && 'android-arm' || 'android-x64' }}
+        run: flutter build apk --release --target-platform "$TARGET_PLATFORM"
+      - name: Verify APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s /tmp/reex_project/build/app/outputs/flutter-apk/app-release.apk
+          file /tmp/reex_project/build/app/outputs/flutter-apk/app-release.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: reex-flutter-apk
+          path: /tmp/reex_project/build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
