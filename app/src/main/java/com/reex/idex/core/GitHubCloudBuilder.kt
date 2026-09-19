@@ -45,6 +45,14 @@ class GitHubCloudBuilder(
             val parentCommit = get("/repos/" + repository + "/git/commits/" + parentSha)
             val baseTree = parentCommit.getJSONObject("tree").getString("sha")
 
+            val packages = Regex("""package:([A-Za-z0-9_]+)\b""")
+                .findAll(source)
+                .map { it.groupValues[1] }
+                .filter { it != "flutter" && it != "flutter_test" }
+                .distinct()
+                .sorted()
+                .toList()
+            val externalDependencies = packages.joinToString("\n") { "  " + it + ": any" }
             val pubspec = """
 name: reex_cloud_project
 description: Flutter project built by REEX IDE X
@@ -55,9 +63,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+${externalDependencies}
 flutter:
   uses-material-design: true
-""".trimIndent() + "\n"
+"""
 
             val tree = post(
                 "/repos/" + repository + "/git/trees",
