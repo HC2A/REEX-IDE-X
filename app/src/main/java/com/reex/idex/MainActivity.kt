@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import io.github.rosemoe.sora.event.ContentChangeEvent
@@ -29,13 +30,14 @@ import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
 import io.github.rosemoe.sora.widget.CodeEditor
+import io.github.rosemoe.sora.widget.subscribeAlways
 import com.reex.idex.core.DartSourceAnalyzer
 import org.eclipse.tm4e.core.registry.IThemeSource
 
 class MainActivity : ComponentActivity() {
-    private var editor: CodeEditor? = null
+    internal var editor: CodeEditor? = null
     private var currentFile = "main.dart"
-    private var arabic = true
+    var arabic by mutableStateOf(true)
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri == null) return@registerForActivityResult
