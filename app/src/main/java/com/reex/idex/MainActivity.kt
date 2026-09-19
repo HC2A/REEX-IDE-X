@@ -126,7 +126,15 @@ private fun ReexIdeScreen(
     var cloudMessage by remember { mutableStateOf("") }
     var cloudBusy by remember { mutableStateOf(false) }
     var cloudRepo by remember { mutableStateOf("HC2A/REEX-IDE-X") }
-    var cloudArch by remember { mutableStateOf(\n        when (Build.SUPPORTED_ABIS.firstOrNull()) {\n            "armeabi-v7a" -> "armeabi-v7a"\n            "x86_64" -> "x86_64"\n            else -> "arm64-v8a"\n        }\n    )
+    var cloudArch by remember {
+        mutableStateOf(
+            when (Build.SUPPORTED_ABIS.firstOrNull()) {
+                "armeabi-v7a" -> "armeabi-v7a"
+                "x86_64" -> "x86_64"
+                else -> "arm64-v8a"
+            }
+        )
+    }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
