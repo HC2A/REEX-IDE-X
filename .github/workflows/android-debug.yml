@@ -28,19 +28,19 @@ jobs:
           SDKMANAGER="$(find "$ANDROID_HOME" -type f -name sdkmanager -print -quit)"
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
-          "$SDKMANAGER" --install "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+          "$SDKMANAGER" --install "platform-tools" "platforms;android-36" "build-tools;36.0.0"
       - name: Install Gradle
         run: |
           set -euo pipefail
-          curl -fsSL https://services.gradle.org/distributions/gradle-8.9-bin.zip -o /tmp/gradle.zip
+          curl -fsSL https://services.gradle.org/distributions/gradle-8.13-bin.zip -o /tmp/gradle.zip
           unzip -q /tmp/gradle.zip -d /tmp/gradle
-          echo "/tmp/gradle/gradle-8.9/bin" >> "$GITHUB_PATH"
+          echo "/tmp/gradle/gradle-8.13/bin" >> "$GITHUB_PATH"
       - name: Build
         run: gradle clean assembleDebug assembleRelease --no-daemon --stacktrace
       - name: Verify release
         run: |
           set -euo pipefail
-          SDK_BUILD="$ANDROID_HOME/build-tools/35.0.0"
+          SDK_BUILD="$ANDROID_HOME/build-tools/36.0.0"
           APK="app/build/outputs/apk/release/app-release-unsigned.apk"
           test -s "$APK"
           "$SDK_BUILD/aapt2" dump badging "$APK" | tee /tmp/badging.txt
@@ -50,8 +50,8 @@ jobs:
         run: |
           set -euo pipefail
           keytool -genkeypair -v -keystore /tmp/reex-release.jks -storepass reexrelease -keypass reexrelease -alias reex -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=REEX IDE X,O=REEX,C=XX"
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" sign --ks /tmp/reex-release.jks --ks-pass pass:reexrelease --key-pass pass:reexrelease --out app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
-          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --verbose app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" sign --ks /tmp/reex-release.jks --ks-pass pass:reexrelease --key-pass pass:reexrelease --out app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk app/build/outputs/apk/release/app-release-unsigned.apk
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk
           sha256sum app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk
           mkdir -p verified-apks
           cp app/build/outputs/apk/debug/app-debug.apk verified-apks/REEX-IDE-X-debug.apk
