@@ -27,6 +27,7 @@ import com.reex.idex.core.DartSourceAnalyzer
 import com.reex.idex.core.CompletionEngine
 import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
+import com.reex.idex.core.FlutterRuntimeBridge
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
@@ -172,7 +173,8 @@ private fun ReexIdeScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
-                FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("PREVIEW") })
+                FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("SIMULATOR") })
+                FilterChip(selected = false, onClick = { FlutterRuntimeBridge.launch(activity, code, arabic) }, label = { Text("RUN FLUTTER") })
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
                 FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
                 FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
@@ -235,7 +237,7 @@ private fun ReexIdeScreen(
                     else -> Column(Modifier.padding(10.dp)) {
                         Text("REEX IDE X • offline")
                         Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text("Preview is a simulator, not a full Flutter runtime.", fontSize = 12.sp)
+                        Text(if (FlutterRuntimeBridge.isAvailable()) "Flutter Engine runtime: packaged" else "Flutter Engine runtime: not packaged in this local source build", fontSize = 12.sp)
                     }
                 }
             }
@@ -254,10 +256,10 @@ private fun ReexIdeScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text("REEX AIDE • LIVE PREVIEW", fontWeight = FontWeight.Bold)
+                            Text("REEX AIDE • LOCAL SIMULATOR", fontWeight = FontWeight.Bold)
                             Text(
-                                if (arabic) "محاكاة محلية — بدون ادعاء تشغيل Flutter الحقيقي"
-                                else "Local simulator — full Flutter runtime not embedded",
+                                if (arabic) "محاكاة واجهة محلية"
+                                else "Compose-only local simulator",
                                 fontSize = 11.sp
                             )
                         }
@@ -292,7 +294,7 @@ private fun ReexIdeScreen(
                                     color = Color(0xFF111827)
                                 )
                                 Spacer(Modifier.height(20.dp))
-                                Text("LIVE PREVIEW / SIMULATOR", color = Color(0xFF64748B), fontSize = 11.sp)
+                                Text("LOCAL SIMULATOR • USE RUN FLUTTER FOR THE REAL ENGINE", color = Color(0xFF64748B), fontSize = 11.sp)
                             }
                         }
                     }
