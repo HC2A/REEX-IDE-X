@@ -67,3 +67,6 @@ Flutter's Android documentation identifies `libflutter.so` as the native Flutter
 A green Android build proves the package can be assembled and structurally verified. It does not replace physical-device testing. The next validation target is installation on an ARM64 Android phone and opening **RUN FLUTTER** to confirm the embedded engine renders correctly on-device.
 
 Use JDK 17 for the Android host build.
+
+
+<!-- CI verification hardened 2026-09-19 -->
