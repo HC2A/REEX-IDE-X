@@ -14,7 +14,7 @@ android {
         targetSdk = 36
         versionCode = 20
         versionName = "3.0.0-editor"
-        resourceConfigurations += listOf("en", "ar")
+        androidResources { localeFilters += listOf("en", "ar") }
     }
 
     buildFeatures {
@@ -41,7 +41,7 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions { jvmTarget = "17" }
+    kotlin {\n        compilerOptions {\n            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)\n        }\n    }
 
     packaging {
         resources.excludes += setOf(
