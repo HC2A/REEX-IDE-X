@@ -12,8 +12,11 @@ android {
         applicationId = "com.reex.idex"
         minSdk = 23
         targetSdk = 36
-        versionCode = 30
-        versionName = "3.1.0-aide"
+        versionCode = 31
+        versionName = "3.2.0-flutter-runtime"
+        ndk {
+            abiFilters += listOf("armeabi-v7a", "arm64-v8a", "x86_64")
+        }
     }
 
     androidResources {
@@ -80,4 +83,13 @@ dependencies {
     implementation("io.github.rosemoe:editor:0.24.4")
     implementation("io.github.rosemoe:language-textmate:0.24.4")
     implementation("io.github.rosemoe:oniguruma-native:0.24.4")
+
+    // CI generates the official Flutter module AAR repository before this build.
+    // Keeping the dependency conditional preserves source-buildability of the editor
+    // while release CI packages the real Flutter Engine runtime.
+    val flutterRepo = rootProject.file("app/flutter_repo")
+    if (flutterRepo.exists()) {
+        debugImplementation("com.reex.runtime.flutter_runtime:flutter_debug:1.0")
+        releaseImplementation("com.reex.runtime.flutter_runtime:flutter_release:1.0")
+    }
 }
