@@ -11,6 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        val flutterRepo = file("$rootDir/app/flutter_repo")
+        if (flutterRepo.exists()) {
+            maven { url = flutterRepo.toURI() }
+        }
     }
 }
 
