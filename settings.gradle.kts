@@ -11,6 +11,7 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://storage.googleapis.com/download.flutter.io")
         val flutterRepo = file("$rootDir/app/flutter_repo")
         if (flutterRepo.exists()) {
             maven { url = flutterRepo.toURI() }
