@@ -84,10 +84,10 @@ flutter:
             )
 
             var run: JSONObject? = null
-            repeat(120) {
+            for (attempt in 0 until 120) {
                 delay(5000)
                 val runs = get("/repos/" + repository + "/actions/runs?event=workflow_dispatch&branch=" + branch + "&per_page=10")
-                    .optJSONArray("workflow_runs") ?: return@repeat
+                    .optJSONArray("workflow_runs") ?: continue
                 for (i in 0 until runs.length()) {
                     val candidate = runs.getJSONObject(i)
                     if (candidate.optString("head_sha") == commitSha) {
@@ -99,7 +99,7 @@ flutter:
                 if (current != null) {
                     val conclusion = current.optString("conclusion")
                     onProgress("GitHub: " + current.optString("status") + if (conclusion.isNotBlank()) " • " + conclusion else "")
-                    if (current.optString("status") == "completed") return@repeat
+                    if (current.optString("status") == "completed") break
                 } else {
                     onProgress("Waiting for runner…")
                 }
