@@ -120,6 +120,8 @@ private fun ReexIdeScreen(
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
     var showCloudBuild by remember { mutableStateOf(false) }
+    var showGitHub by remember { mutableStateOf(false) }
+    var githubToken by remember { mutableStateOf("") }
     var cloudMessage by remember { mutableStateOf("") }
     var cloudBusy by remember { mutableStateOf(false) }
     var cloudRepo by remember { mutableStateOf("HC2A/REEX-IDE-X") }
@@ -150,6 +152,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onSave) { Text("SAVE") }
                     TextButton(onClick = { showProject = true }) { Text("TREE") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = { showGitHub = true }) { Text("GITHUB") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -378,6 +381,63 @@ private fun ReexIdeScreen(
         )
     }
 
+
+
+    if (showGitHub) {
+        val store = com.reex.idex.core.GitHubCredentialStore(activity)
+        AlertDialog(
+            onDismissRequest = { showGitHub = false },
+            title = { Text(if (arabic) "ربط GitHub" else "Connect GitHub") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        if (arabic)
+                            "احفظ Fine-grained token محلياً في Android Keystore. REEX يستخدمه فقط لرفع المشروع وتشغيل GitHub Actions وتنزيل APK."
+                        else
+                            "The fine-grained token is stored locally using Android Keystore. REEX uses it only to upload the project, run Actions and download the APK.",
+                        fontSize = 12.sp
+                    )
+                    OutlinedTextField(
+                        value = githubToken,
+                        onValueChange = { githubToken = it },
+                        label = { Text("GitHub token") },
+                        singleLine = true
+                    )
+                    Text(
+                        if (store.isConnected())
+                            if (arabic) "الحساب متصل محلياً ✓" else "GitHub credential is stored locally ✓"
+                        else
+                            if (arabic) "غير متصل" else "Not connected",
+                        fontSize = 12.sp
+                    )
+                    Text(
+                        "Required: Contents write • Actions write • Workflows write",
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Row {
+                    TextButton(onClick = {
+                        store.clear()
+                        githubToken = ""
+                    }) { Text(if (arabic) "مسح" else "Clear") }
+                    Button(onClick = {
+                        runCatching { store.saveToken(githubToken.trim()) }
+                        githubToken = ""
+                        showGitHub = false
+                    }, enabled = githubToken.isNotBlank()) {
+                        Text(if (arabic) "حفظ" else "Save")
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGitHub = false }) {
+                    Text(if (arabic) "إغلاق" else "Close")
+                }
+            }
+        )
+    }
 
     if (showCloudBuild) {
         AlertDialog(
