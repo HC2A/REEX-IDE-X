@@ -10,7 +10,7 @@ android {
 
     defaultConfig {
         applicationId = "com.reex.idex"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 36
         versionCode = 31
         versionName = "3.2.0-flutter-runtime"
