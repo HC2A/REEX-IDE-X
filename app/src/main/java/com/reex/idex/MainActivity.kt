@@ -11,6 +11,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -86,6 +87,7 @@ class ReexApp extends StatelessWidget {
 }
 """
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ReexIdeScreen(
     activity: MainActivity,
