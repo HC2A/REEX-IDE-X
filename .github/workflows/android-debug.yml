@@ -78,8 +78,8 @@ jobs:
           grep -q "package: name='com.reex.idex'" /tmp/badging.txt
           "$SDK_BUILD/zipalign" -c -P 16 -v 4 "$APK"
           unzip -l "$APK" | grep -q "lib/arm64-v8a/libflutter.so"
-          unzip -l "$APK" | grep -q "lib/armeabi-v7a/libflutter.so"
-          unzip -l "$APK" | grep -q "lib/x86_64/libflutter.so"
+          ! unzip -l "$APK" | grep -q "lib/armeabi-v7a/libflutter.so"
+          ! unzip -l "$APK" | grep -q "lib/x86_64/libflutter.so"
           "$SDK_BUILD/aapt2" dump xmltree --file AndroidManifest.xml "$APK" | grep -q "flutterEmbedding"
       - name: Sign release for installation
         run: |
@@ -89,14 +89,15 @@ jobs:
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk
           sha256sum app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk
           mkdir -p verified-apks
-          cp app/build/outputs/apk/debug/app-debug.apk verified-apks/REEX-IDE-X-debug.apk
-          cp app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk verified-apks/REEX-IDE-X-release-signed.apk
+          cp app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk verified-apks/REEX-IDE-X-arm64-v8a-release.apk
       - name: Verify Flutter runtime in final APKs
         run: |
           set -euo pipefail
           for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/release/REEX-IDE-X-release-signed.apk; do
             echo "=== $apk ==="
             unzip -l "$apk" | grep "lib/arm64-v8a/libflutter.so"
+            ! unzip -l "$apk" | grep "lib/armeabi-v7a/libflutter.so"
+            ! unzip -l "$apk" | grep "lib/x86_64/libflutter.so"
             "$ANDROID_HOME/build-tools/36.0.0/aapt2" dump xmltree --file AndroidManifest.xml "$apk" | grep -A2 -B2 "flutterEmbedding" || true
           done
       - uses: actions/upload-artifact@v4
