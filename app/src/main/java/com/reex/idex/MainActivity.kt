@@ -132,6 +132,7 @@ private fun ReexIdeScreen(
     val workspaceStore = remember { WorkspaceStore(activity) }
     val projectRoot = remember { workspaceStore.ensureDefaultProject() }
     var activeRelativePath by remember { mutableStateOf("lib/main.dart") }
+    val activePathForEditor by rememberUpdatedState(activeRelativePath)
     var code by remember {
         mutableStateOf(
             workspaceStore.readText(projectRoot, activeRelativePath)
@@ -290,7 +291,7 @@ private fun ReexIdeScreen(
                         subscribeAlways<ContentChangeEvent> {
                             code = text.toString()
                             offlineSession.save(activeRelativePath, code)
-                            workspaceStore.saveText(projectRoot, activeRelativePath, code)
+                            workspaceStore.saveText(projectRoot, activePathForEditor, code)
                         }
                     }
                 }
