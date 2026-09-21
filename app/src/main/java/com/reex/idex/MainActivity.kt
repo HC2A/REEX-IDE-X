@@ -84,7 +84,7 @@ class MainActivity : ComponentActivity() {
                     onOpenWorkspaceFile = { file ->
                         runCatching {
                             editor?.setText(file.readText(Charsets.UTF_8))
-                            currentFile = file.relativeTo(WorkspaceStore(this).ensureDefaultProject()).path.replace(File.separatorChar, "/")
+                            currentFile = file.relativeTo(WorkspaceStore(this).ensureDefaultProject()).path.replace(File.separatorChar, '/')
                         }
                     }
                 )
@@ -584,7 +584,7 @@ private fun ReexIdeScreen(
                                     val uri = FileProvider.getUriForFile(
                                         activity,
                                         "com.reex.idex.fileprovider",
-                                        result.apk
+                                        result
                                     )
                                     activity.startActivity(
                                         Intent(Intent.ACTION_VIEW).apply {
