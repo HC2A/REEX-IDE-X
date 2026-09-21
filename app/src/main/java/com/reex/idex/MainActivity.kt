@@ -35,6 +35,7 @@ import com.reex.idex.core.CompletionEngine
 import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.FlutterRuntimeBridge
+import com.reex.idex.core.TextMateEditorSupport
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
@@ -232,6 +233,7 @@ private fun ReexIdeScreen(
                 factory = { context ->
                     CodeEditor(context).apply {
                         activity.editor = this
+                        TextMateEditorSupport.configureDart(context, this)
                         setText(DEFAULT_DART)
                         subscribeAlways<ContentChangeEvent> {
                             code = text.toString()
