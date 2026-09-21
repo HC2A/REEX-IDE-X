@@ -431,7 +431,7 @@ private fun ReexIdeScreen(
 
     if (showCompletion) {
         val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
-        val suggestions = CompletionEngine.suggest(prefix)
+        val suggestions = CompletionEngine.suggest(prefix, code)
         AlertDialog(
             onDismissRequest = { showCompletion = false },
             title = { Text(if (arabic) "الإكمال الذكي" else "Smart Completion") },
