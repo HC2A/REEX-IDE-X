@@ -3,6 +3,7 @@ package com.reex.idex.core
 import android.content.Context
 import io.github.rosemoe.sora.langs.textmate.TextMateColorScheme
 import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
+import io.github.rosemoe.sora.langs.textmate.registry.FileProviderRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
@@ -15,7 +16,7 @@ object TextMateEditorSupport {
 
     fun configureDart(context: Context, editor: CodeEditor) {
         runCatching {
-            initialize(context)
+            initialize(context.applicationContext)
             editor.colorScheme = TextMateColorScheme.create(ThemeRegistry.getInstance())
             editor.setEditorLanguage(TextMateLanguage.create("source.dart", true))
         }
@@ -24,10 +25,17 @@ object TextMateEditorSupport {
     @Synchronized
     private fun initialize(context: Context) {
         if (initialized) return
+
+        FileProviderRegistry.getInstance().addFileProvider(
+            AssetsFileResolver(context.assets)
+        )
+
         val themeRegistry = ThemeRegistry.getInstance()
         val themePath = "textmate/darcula.json"
         val source = FileProviderRegistry.getInstance()
             .tryGetInputStream(themePath)
+            ?: error("Missing TextMate theme asset: $themePath")
+
         themeRegistry.loadTheme(
             ThemeModel(IThemeSource.fromInputStream(source, themePath, null), "darcula")
         )

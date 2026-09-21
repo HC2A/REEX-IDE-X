@@ -25,7 +25,7 @@ class GitHubCloudBuilder(
         private const val API_VERSION = "2022-11-28"
         private const val WORKFLOW = ".github/workflows/reex-cloud-build.yml"
         private const val PROJECT_ROOT = ".reex/project"
-        private const val ARTIFACT = "reex-flutter-apk"
+        private const val ARTIFACT_PREFIX = "reex-flutter-apk-"
     }
 
     suspend fun build(repository: String, source: String, architecture: String, onProgress: (String) -> Unit = {}): CloudBuildResult =
@@ -123,7 +123,7 @@ flutter:
             val artifacts = get("/repos/" + repository + "/actions/runs/" + completed.getLong("id") + "/artifacts")
                 .optJSONArray("artifacts") ?: error("No build artifact returned")
             val artifact = (0 until artifacts.length()).map { artifacts.getJSONObject(it) }
-                .firstOrNull { it.optString("name") == ARTIFACT && !it.optBoolean("expired") }
+                .firstOrNull { it.optString("name") == ARTIFACT_PREFIX + architecture && !it.optBoolean("expired") }
                 ?: error("APK artifact not found")
 
             val zip = File(context.cacheDir, "reex-cloud-artifact.zip")
