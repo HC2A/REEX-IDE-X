@@ -84,12 +84,8 @@ class GitHubRuntimeBuilder(
             patch("/repos/$repository/git/refs/heads/$branch", JSONObject().put("sha", commitSha))
 
             onProgress("Compiling Dart to real Flutter kernel…")
-            post(
-                "/repos/$repository/actions/workflows/reex-runtime-build.yml/dispatches",
-                JSONObject()
-                    .put("ref", branch)
-                    .put("inputs", JSONObject().put("architecture", architecture))
-            )
+            // The runtime workflow is also triggered by the isolated branch push.
+            // This avoids requiring Actions:write just to start a user build.
 
             var run: JSONObject? = null
             for (attempt in 0 until 180) {
