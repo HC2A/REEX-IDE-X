@@ -36,6 +36,7 @@ import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.FlutterRuntimeBridge
 import com.reex.idex.core.TextMateEditorSupport
+import com.reex.idex.core.OfflineSessionStore
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
@@ -116,7 +117,8 @@ private fun ReexIdeScreen(
 ) {
     var panel by remember { mutableStateOf("problems") }
     var diagnostics by remember { mutableStateOf(DartSourceAnalyzer.analyze(DEFAULT_DART)) }
-    var code by remember { mutableStateOf(DEFAULT_DART) }
+    val offlineSession = remember { OfflineSessionStore(activity) }
+    var code by remember { mutableStateOf(offlineSession.sourceOrNull() ?: DEFAULT_DART) }
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
@@ -234,9 +236,10 @@ private fun ReexIdeScreen(
                     CodeEditor(context).apply {
                         activity.editor = this
                         TextMateEditorSupport.configureDart(context, this)
-                        setText(DEFAULT_DART)
+                        setText(code)
                         subscribeAlways<ContentChangeEvent> {
                             code = text.toString()
+                            offlineSession.save(fileName, code)
                         }
                     }
                 }
