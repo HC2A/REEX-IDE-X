@@ -1,6 +1,9 @@
 name: REEX IDE X - Real Flutter Runtime Bundle
 
 on:
+  push:
+    branches:
+      - 'reex/runtime/**'
   workflow_dispatch:
     inputs:
       architecture:
