@@ -37,13 +37,17 @@ import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.FlutterRuntimeBridge
 import com.reex.idex.core.TextMateEditorSupport
 import com.reex.idex.core.OfflineSessionStore
+import com.reex.idex.core.WorkspaceStore
+import com.reex.idex.core.GitHubRuntimeBuilder
+import com.reex.idex.core.GitHubProjectBuilder
+import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
-    private var currentFile by mutableStateOf("main.dart")
+    private var currentFile by mutableStateOf("lib/main.dart")
     private var arabic by mutableStateOf(true)
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -76,7 +80,13 @@ class MainActivity : ComponentActivity() {
                     arabic = arabic,
                     onToggleLanguage = { arabic = !arabic },
                     onOpen = { openFile.launch(arrayOf("text/*", "application/octet-stream", "*/*")) },
-                    onSave = { saveFile.launch(currentFile) }
+                    onSave = { saveFile.launch(currentFile) },
+                    onOpenWorkspaceFile = { file ->
+                        runCatching {
+                            editor?.setText(file.readText(Charsets.UTF_8))
+                            currentFile = file.relativeTo(WorkspaceStore(this).ensureDefaultProject()).path.replace(File.separatorChar, "/")
+                        }
+                    }
                 )
             }
         }
@@ -113,12 +123,22 @@ private fun ReexIdeScreen(
     arabic: Boolean,
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
-    onSave: () -> Unit
+    onSave: () -> Unit,
+    onOpenWorkspaceFile: (File) -> Unit
 ) {
     var panel by remember { mutableStateOf("problems") }
     var diagnostics by remember { mutableStateOf(DartSourceAnalyzer.analyze(DEFAULT_DART)) }
     val offlineSession = remember { OfflineSessionStore(activity) }
-    var code by remember { mutableStateOf(offlineSession.sourceOrNull() ?: DEFAULT_DART) }
+    val workspaceStore = remember { WorkspaceStore(activity) }
+    val projectRoot = remember { workspaceStore.ensureDefaultProject() }
+    var activeRelativePath by remember { mutableStateOf("lib/main.dart") }
+    var code by remember {
+        mutableStateOf(
+            workspaceStore.readText(projectRoot, activeRelativePath)
+                ?: offlineSession.sourceOrNull()
+                ?: DEFAULT_DART
+        )
+    }
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
@@ -201,7 +221,37 @@ private fun ReexIdeScreen(
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
                 FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("SIMULATOR") })
-                FilterChip(selected = false, onClick = { FlutterRuntimeBridge.launch(activity, code, arabic) }, label = { Text("RUN FLUTTER") })
+                FilterChip(
+                    selected = false,
+                    onClick = {
+                        val store = com.reex.idex.core.GitHubCredentialStore(activity)
+                        val token = store.token()
+                        if (token.isNullOrBlank()) {
+                            cloudMessage = if (arabic) "لتشغيل الكود الحقيقي: اربط GitHub أولاً." else "Connect GitHub first to compile and run real Flutter code."
+                            showCloudBuild = true
+                        } else {
+                            cloudBusy = true
+                            cloudMessage = if (arabic) "جاري ترجمة المشروع الحقيقي وتشغيله داخل Flutter Engine…" else "Compiling the real project and starting it inside Flutter Engine…"
+                            CoroutineScope(Dispatchers.Main).launch {
+                                runCatching {
+                                    GitHubRuntimeBuilder(activity, token).compile(
+                                        repository = cloudRepo.trim(),
+                                        project = projectRoot,
+                                        architecture = cloudArch,
+                                        onProgress = { message -> cloudMessage = message }
+                                    )
+                                }.onSuccess { result ->
+                                    cloudBusy = false
+                                    FlutterRuntimeBridge.launchCompiled(activity, result.bundleDir, arabic)
+                                }.onFailure { error ->
+                                    cloudBusy = false
+                                    cloudMessage = error.message ?: "Runtime compilation failed"
+                                }
+                            }
+                        }
+                    },
+                    label = { Text("RUN FLUTTER • REAL") }
+                )
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
                 FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
                 FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
@@ -239,7 +289,8 @@ private fun ReexIdeScreen(
                         setText(code)
                         subscribeAlways<ContentChangeEvent> {
                             code = text.toString()
-                            offlineSession.save(fileName, code)
+                            offlineSession.save(activeRelativePath, code)
+                            workspaceStore.saveText(projectRoot, activeRelativePath, code)
                         }
                     }
                 }
@@ -345,11 +396,27 @@ private fun ReexIdeScreen(
             text = {
                 LazyColumn {
                     item { Text("my_app/", fontWeight = FontWeight.Bold) }
-                    items(ProjectTree.fromDart(code)) { node ->
-                        Text(
-                            ("  ".repeat(node.depth)) + (if (node.isFolder) "▸ " else "• ") + node.name,
-                            fontSize = 12.sp
-                        )
+                    items(ProjectTree.fromWorkspace(projectRoot)) { node ->
+                        TextButton(
+                            onClick = {
+                                if (!node.isFolder) {
+                                    val file = File(projectRoot, node.relativePath)
+                                    if (file.isFile) {
+                                        activeRelativePath = node.relativePath
+                                        onOpenWorkspaceFile(file)
+                                    }
+                                }
+                            },
+                            enabled = !node.isFolder,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                ("  ".repeat(node.depth)) +
+                                    (if (node.isFolder) "▸ " else "• ") + node.name,
+                                fontSize = 12.sp,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
                     }
                 }
             },
@@ -503,9 +570,10 @@ private fun ReexIdeScreen(
                             cloudMessage = if (arabic) "جاري الرفع والبناء…" else "Uploading and building…"
                             CoroutineScope(Dispatchers.Main).launch {
                                 runCatching {
-                                    com.reex.idex.core.GitHubCloudBuilder(activity, token).build(
-                                        repository = cloudRepo.trim(),
-                                        source = activity.editor?.text?.toString().orEmpty(),
+                                    GitHubProjectBuilder(activity, token).apply {
+                                        configure(cloudRepo.trim())
+                                    }.build(
+                                        project = projectRoot,
                                         architecture = cloudArch,
                                         onProgress = { message -> cloudMessage = message }
                                     )
