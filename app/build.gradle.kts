@@ -13,7 +13,7 @@ android {
         minSdk = 24
         targetSdk = 36
         versionCode = 32
-        versionName = "3.3.0-jit-runtime"
+        versionName = "4.0.0-editor"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -54,10 +54,6 @@ android {
     }
 
     packaging {
-        // Flutter debug engine keeps the JIT runtime needed by REEX's real code runner,
-        // but its Vulkan validation layer is a development-only payload and must not ship
-        // inside the release APK.
-        jniLibs.excludes += setOf("**/libVkLayer_khronos_validation.so")
         resources.excludes += setOf(
             "META-INF/DEPENDENCIES",
             "META-INF/LICENSE",
@@ -88,12 +84,4 @@ dependencies {
     implementation("io.github.rosemoe:language-textmate:0.24.4")
     implementation("io.github.rosemoe:oniguruma-native:0.24.4")
 
-    // CI generates the official Flutter module AAR repository before this build.
-    // Keeping the dependency conditional preserves source-buildability of the editor
-    // while release CI packages the real Flutter Engine runtime.
-    val flutterRepo = rootProject.file("app/flutter_repo")
-    if (flutterRepo.exists()) {
-        debugImplementation("com.reex.runtime.flutter_runtime:flutter_debug:1.0")
-        releaseImplementation("com.reex.runtime.flutter_runtime:flutter_debug:1.0")
-    }
 }
