@@ -7,7 +7,7 @@ import java.io.FileOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.nio.charset.StandardCharsets
-import java.util.Base64
+import android.util.Base64
 import java.util.zip.ZipInputStream
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -157,7 +157,7 @@ class GitHubRuntimeBuilder(
                 val blob = post(
                     "/repos/$activeRepository/git/blobs",
                     JSONObject()
-                        .put("content", Base64.getEncoder().encodeToString(file.readBytes()))
+                        .put("content", Base64.encodeToString(file.readBytes(), Base64.NO_WRAP))
                         .put("encoding", "base64")
                 )
                 JSONObject()
