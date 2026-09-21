@@ -2,11 +2,7 @@ package com.reex.idex
 
 import android.os.Bundle
 import android.os.Build
-import android.content.Intent
 import android.net.Uri
-import androidx.core.content.FileProvider
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -34,12 +30,9 @@ import com.reex.idex.core.DartSourceAnalyzer
 import com.reex.idex.core.CompletionEngine
 import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
-import com.reex.idex.core.FlutterRuntimeBridge
 import com.reex.idex.core.TextMateEditorSupport
 import com.reex.idex.core.OfflineSessionStore
 import com.reex.idex.core.WorkspaceStore
-import com.reex.idex.core.GitHubRuntimeBuilder
-import com.reex.idex.core.GitHubProjectBuilder
 import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -144,21 +137,6 @@ private fun ReexIdeScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
-    var showCloudBuild by remember { mutableStateOf(false) }
-    var showGitHub by remember { mutableStateOf(false) }
-    var githubToken by remember { mutableStateOf("") }
-    var cloudMessage by remember { mutableStateOf("") }
-    var cloudBusy by remember { mutableStateOf(false) }
-    var cloudRepo by remember { mutableStateOf("HC2A/REEX-IDE-X") }
-    var cloudArch by remember {
-        mutableStateOf(
-            when (Build.SUPPORTED_ABIS.firstOrNull()) {
-                "armeabi-v7a" -> "armeabi-v7a"
-                "x86_64" -> "x86_64"
-                else -> "arm64-v8a"
-            }
-        )
-    }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
@@ -183,9 +161,8 @@ private fun ReexIdeScreen(
                     }) { Text("NEW") }
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
-                    TextButton(onClick = { showProject = true }) { Text("TREE") }
+                    TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
-                    TextButton(onClick = { showGitHub = true }) { Text("GITHUB") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -222,37 +199,6 @@ private fun ReexIdeScreen(
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
                 FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("SIMULATOR") })
-                FilterChip(
-                    selected = false,
-                    onClick = {
-                        val store = com.reex.idex.core.GitHubCredentialStore(activity)
-                        val token = store.token()
-                        if (token.isNullOrBlank()) {
-                            cloudMessage = if (arabic) "لتشغيل الكود الحقيقي: اربط GitHub أولاً." else "Connect GitHub first to compile and run real Flutter code."
-                            showCloudBuild = true
-                        } else {
-                            cloudBusy = true
-                            cloudMessage = if (arabic) "جاري ترجمة المشروع الحقيقي وتشغيله داخل Flutter Engine…" else "Compiling the real project and starting it inside Flutter Engine…"
-                            CoroutineScope(Dispatchers.Main).launch {
-                                runCatching {
-                                    GitHubRuntimeBuilder(activity, token).compile(
-                                        repository = cloudRepo.trim(),
-                                        project = projectRoot,
-                                        architecture = cloudArch,
-                                        onProgress = { message -> cloudMessage = message }
-                                    )
-                                }.onSuccess { result ->
-                                    cloudBusy = false
-                                    FlutterRuntimeBridge.launchCompiled(activity, result.bundleDir, arabic)
-                                }.onFailure { error ->
-                                    cloudBusy = false
-                                    cloudMessage = error.message ?: "Runtime compilation failed"
-                                }
-                            }
-                        }
-                    },
-                    label = { Text("RUN FLUTTER • REAL") }
-                )
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
                 FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
                 FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
@@ -273,11 +219,6 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
-                FilterChip(
-                    selected = false,
-                    onClick = { showCloudBuild = true },
-                    label = { Text("CLOUD BUILD") }
-                )
                 FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
             }
 
@@ -321,9 +262,9 @@ private fun ReexIdeScreen(
                         if (names.isEmpty()) item { Text("No recognized widgets") }
                     }
                     else -> Column(Modifier.padding(10.dp)) {
-                        Text("REEX IDE X • offline")
+                        Text("REEX IDE X • OFFLINE EDITOR")
                         Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text(if (FlutterRuntimeBridge.isAvailable()) "Flutter Engine runtime: packaged" else "Flutter Engine runtime: not packaged in this local source build", fontSize = 12.sp)
+                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)
                     }
                 }
             }
@@ -464,150 +405,6 @@ private fun ReexIdeScreen(
     }
 
 
-
-    if (showGitHub) {
-        val store = com.reex.idex.core.GitHubCredentialStore(activity)
-        AlertDialog(
-            onDismissRequest = { showGitHub = false },
-            title = { Text(if (arabic) "ربط GitHub" else "Connect GitHub") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        if (arabic)
-                            "احفظ Fine-grained token محلياً في Android Keystore. REEX يستخدمه فقط لرفع المشروع وتشغيل GitHub Actions وتنزيل APK."
-                        else
-                            "The fine-grained token is stored locally using Android Keystore. REEX uses it only to upload the project, run Actions and download the APK.",
-                        fontSize = 12.sp
-                    )
-                    OutlinedTextField(
-                        value = githubToken,
-                        onValueChange = { githubToken = it },
-                        label = { Text("GitHub token") },
-                        singleLine = true
-                    )
-                    Text(
-                        if (store.isConnected())
-                            if (arabic) "الحساب متصل محلياً ✓" else "GitHub credential is stored locally ✓"
-                        else
-                            if (arabic) "غير متصل" else "Not connected",
-                        fontSize = 12.sp
-                    )
-                    Text(
-                        "Required: Contents write • Actions write • Workflows write",
-                        fontSize = 11.sp
-                    )
-                }
-            },
-            confirmButton = {
-                Row {
-                    TextButton(onClick = {
-                        store.clear()
-                        githubToken = ""
-                    }) { Text(if (arabic) "مسح" else "Clear") }
-                    Button(onClick = {
-                        runCatching { store.saveToken(githubToken.trim()) }
-                        githubToken = ""
-                        showGitHub = false
-                    }, enabled = githubToken.isNotBlank()) {
-                        Text(if (arabic) "حفظ" else "Save")
-                    }
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showGitHub = false }) {
-                    Text(if (arabic) "إغلاق" else "Close")
-                }
-            }
-        )
-    }
-
-    if (showCloudBuild) {
-        AlertDialog(
-            onDismissRequest = { if (!cloudBusy) showCloudBuild = false },
-            title = { Text(if (arabic) "البناء السحابي • GitHub" else "Cloud Build • GitHub") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    Text(
-                        if (arabic) "التحرير والتحليل والإكمال والمعاينة تعمل محلياً. الإنترنت يُستخدم هنا للبناء فقط."
-                        else "Editing, analysis, completion and preview stay local. Internet is used here only for the build."
-                    )
-                    OutlinedTextField(
-                        value = cloudRepo,
-                        onValueChange = { cloudRepo = it },
-                        enabled = !cloudBusy,
-                        label = { Text("GitHub repository") },
-                        singleLine = true
-                    )
-                    Text("Architecture: " + cloudArch, fontSize = 12.sp)
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        listOf("arm64-v8a", "armeabi-v7a", "x86_64").forEach { arch ->
-                            FilterChip(
-                                selected = cloudArch == arch,
-                                onClick = { cloudArch = arch },
-                                label = { Text(arch) },
-                                enabled = !cloudBusy
-                            )
-                        }
-                    }
-                    if (cloudMessage.isNotBlank()) {
-                        Text(cloudMessage, fontSize = 12.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    enabled = !cloudBusy,
-                    onClick = {
-                        val store = com.reex.idex.core.GitHubCredentialStore(activity)
-                        val token = store.token()
-                        if (token.isNullOrBlank()) {
-                            cloudMessage = if (arabic) {
-                                "اربط GitHub أولاً من زر AI/الإعدادات بإدخال Fine-grained token بصلاحيات Contents:write و Actions:write و Workflows:write."
-                            } else {
-                                "Connect GitHub first with a fine-grained token: Contents:write, Actions:write and Workflows:write."
-                            }
-                        } else {
-                            cloudBusy = true
-                            cloudMessage = if (arabic) "جاري الرفع والبناء…" else "Uploading and building…"
-                            CoroutineScope(Dispatchers.Main).launch {
-                                runCatching {
-                                    GitHubProjectBuilder(activity, token).apply {
-                                        configure(cloudRepo.trim())
-                                    }.build(
-                                        project = projectRoot,
-                                        architecture = cloudArch,
-                                        onProgress = { message -> cloudMessage = message }
-                                    )
-                                }.onSuccess { result ->
-                                    cloudBusy = false
-                                    cloudMessage = if (arabic) "تم البناء ✓  • APK جاهز" else "Build succeeded ✓  • APK ready"
-                                    val uri = FileProvider.getUriForFile(
-                                        activity,
-                                        "com.reex.idex.fileprovider",
-                                        result
-                                    )
-                                    activity.startActivity(
-                                        Intent(Intent.ACTION_VIEW).apply {
-                                            setDataAndType(uri, "application/vnd.android.package-archive")
-                                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                                        }
-                                    )
-                                }.onFailure { error ->
-                                    cloudBusy = false
-                                    cloudMessage = error.message ?: "Cloud build failed"
-                                }
-                            }
-                        }
-                    }
-                ) { Text(if (cloudBusy) "BUILDING…" else "BUILD") }
-            },
-            dismissButton = {
-                TextButton(enabled = !cloudBusy, onClick = { showCloudBuild = false }) {
-                    Text(if (arabic) "إغلاق" else "Close")
-                }
-            }
-        )
-    }
 
     if (showSnippets) {
         val snippets = listOf(
