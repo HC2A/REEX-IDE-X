@@ -54,6 +54,10 @@ android {
     }
 
     packaging {
+        // Flutter debug engine keeps the JIT runtime needed by REEX's real code runner,
+        // but its Vulkan validation layer is a development-only payload and must not ship
+        // inside the release APK.
+        jniLibs.excludes += setOf("**/libVkLayer_khronos_validation.so")
         resources.excludes += setOf(
             "META-INF/DEPENDENCIES",
             "META-INF/LICENSE",
