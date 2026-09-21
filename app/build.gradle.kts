@@ -12,8 +12,8 @@ android {
         applicationId = "com.reex.idex"
         minSdk = 24
         targetSdk = 36
-        versionCode = 31
-        versionName = "3.2.0-flutter-runtime"
+        versionCode = 32
+        versionName = "3.3.0-jit-runtime"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
@@ -90,6 +90,6 @@ dependencies {
     val flutterRepo = rootProject.file("app/flutter_repo")
     if (flutterRepo.exists()) {
         debugImplementation("com.reex.runtime.flutter_runtime:flutter_debug:1.0")
-        releaseImplementation("com.reex.runtime.flutter_runtime:flutter_release:1.0")
+        releaseImplementation("com.reex.runtime.flutter_runtime:flutter_debug:1.0")
     }
 }
