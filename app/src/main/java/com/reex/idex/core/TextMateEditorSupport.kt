@@ -6,7 +6,6 @@ import io.github.rosemoe.sora.langs.textmate.TextMateLanguage
 import io.github.rosemoe.sora.langs.textmate.registry.GrammarRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.ThemeRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.provider.AssetsFileResolver
-import io.github.rosemoe.sora.langs.textmate.registry.provider.FileProviderRegistry
 import io.github.rosemoe.sora.langs.textmate.registry.model.ThemeModel
 import org.eclipse.tm4e.core.registry.IThemeSource
 import io.github.rosemoe.sora.widget.CodeEditor
@@ -25,10 +24,6 @@ object TextMateEditorSupport {
     @Synchronized
     private fun initialize(context: Context) {
         if (initialized) return
-        FileProviderRegistry.getInstance().addFileProvider(
-            AssetsFileResolver(context.applicationContext.assets)
-        )
-
         val themeRegistry = ThemeRegistry.getInstance()
         val themePath = "textmate/darcula.json"
         val source = FileProviderRegistry.getInstance()
