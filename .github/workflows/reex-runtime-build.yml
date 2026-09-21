@@ -1,0 +1,68 @@
+name: REEX IDE X - Real Flutter Runtime Bundle
+
+on:
+  workflow_dispatch:
+    inputs:
+      architecture:
+        description: Android target architecture used for the JIT runtime bundle
+        required: true
+        default: arm64-v8a
+        type: choice
+        options:
+          - arm64-v8a
+          - armeabi-v7a
+          - x86_64
+
+permissions:
+  contents: read
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout project
+        uses: actions/checkout@v7
+
+      - name: Install Flutter
+        shell: bash
+        env:
+          FLUTTER_VERSION: 3.47.3
+          FLUTTER_SHA256: 988665565cad9091db1baa54bf6d3868bb40e29719592f3c3a164deefd4208e1
+        run: |
+          set -euo pipefail
+          curl -fsSL "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" -o /tmp/flutter.tar.xz
+          echo "${FLUTTER_SHA256}  /tmp/flutter.tar.xz" | sha256sum -c -
+          tar -xJf /tmp/flutter.tar.xz -C /opt
+          echo "/opt/flutter/bin" >> "${GITHUB_PATH}"
+          export PATH="/opt/flutter/bin:$PATH"
+          flutter config --no-analytics
+          flutter precache --android
+          flutter --version
+
+      - name: Resolve the complete project
+        working-directory: .reex/project
+        run: flutter pub get
+
+      - name: Compile the complete Dart/Flutter project to JIT kernel
+        working-directory: .reex/project
+        env:
+          TARGET_PLATFORM: ${{ inputs.architecture == 'arm64-v8a' && 'android-arm64' || inputs.architecture == 'armeabi-v7a' && 'android-arm' || 'android-x64' }}
+        run: |
+          set -euo pipefail
+          flutter build bundle --debug --target=lib/main.dart --target-platform "$TARGET_PLATFORM"
+          test -s build/flutter_assets/kernel_blob.bin
+          test -s build/flutter_assets/vm_snapshot_data
+          test -s build/flutter_assets/isolate_snapshot_data
+          mkdir -p /tmp/reex_runtime_bundle
+          cp -R build/flutter_assets/. /tmp/reex_runtime_bundle/
+          printf '%s\n' "${{ inputs.architecture }}" > /tmp/reex_runtime_bundle/reex_target_abi.txt
+          printf '%s\n' "${GITHUB_SHA}" > /tmp/reex_runtime_bundle/reex_source_sha.txt
+
+      - name: Upload real engine runtime bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: reex-flutter-runtime-${{ inputs.architecture }}
+          path: /tmp/reex_runtime_bundle/
+          if-no-files-found: error
+          retention-days: 7
