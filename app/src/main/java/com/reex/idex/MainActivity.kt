@@ -37,6 +37,7 @@ import com.reex.idex.core.FlutterRuntimeLauncher
 import com.reex.idex.core.OfflineToolchainManager
 import com.reex.idex.core.FlutterBuildService
 import com.reex.idex.core.BuildResult
+import com.reex.idex.core.LocalCommandRunner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -149,6 +150,10 @@ private fun ReexIdeScreen(
     var showCompletion by remember { mutableStateOf(false) }
     var showToolchain by remember { mutableStateOf(false) }
     var showBuild by remember { mutableStateOf(false) }
+    var showTerminal by remember { mutableStateOf(false) }
+    var terminalCommand by remember { mutableStateOf("flutter --version") }
+    var terminalOutput by remember { mutableStateOf("") }
+    var terminalRunning by remember { mutableStateOf(false) }
     var building by remember { mutableStateOf(false) }
     var buildResult by remember { mutableStateOf<BuildResult?>(null) }
     val scope = rememberCoroutineScope()
@@ -183,6 +188,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
                     TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
+                    TextButton(onClick = { showTerminal = true }) { Text("TERMINAL") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -426,6 +432,63 @@ private fun ReexIdeScreen(
 
 
 
+
+
+    if (showTerminal) {
+        AlertDialog(
+            onDismissRequest = { if (!terminalRunning) showTerminal = false },
+            title = { Text(if (arabic) "طرفية المشروع" else "Project Terminal") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(
+                        value = terminalCommand,
+                        onValueChange = { terminalCommand = it },
+                        enabled = !terminalRunning,
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("Command") }
+                    )
+                    Surface(
+                        Modifier.fillMaxWidth().height(260.dp),
+                        color = Color(0xFF05070A)
+                    ) {
+                        Text(
+                            terminalOutput.ifBlank { "Ready." },
+                            fontSize = 9.sp,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Row {
+                    TextButton(
+                        enabled = !terminalRunning && terminalCommand.isNotBlank(),
+                        onClick = {
+                            terminalRunning = true
+                            terminalOutput = "$ " + terminalCommand + "\n"
+                            scope.launch(Dispatchers.IO) {
+                                val parts = terminalCommand.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
+                                val result = if (parts.isEmpty()) {
+                                    BuildResult(false, null, null, "Empty command")
+                                    null
+                                } else {
+                                    LocalCommandRunner().run(projectRoot, parts, 300)
+                                }
+                                withContext(Dispatchers.Main) {
+                                    terminalOutput += result?.output.orEmpty()
+                                    terminalRunning = false
+                                }
+                            }
+                        }
+                    ) { Text(if (terminalRunning) "RUNNING…" else "RUN") }
+                    TextButton(enabled = !terminalRunning, onClick = { showTerminal = false }) {
+                        Text(if (arabic) "إغلاق" else "Close")
+                    }
+                }
+            }
+        )
+    }
 
     if (showBuild) {
         AlertDialog(
