@@ -12,3 +12,6 @@ dependencies:
 
 flutter:
   uses-material-design: true
+  module:
+    androidPackage: com.reex.flutter_module
+    androidX: true
