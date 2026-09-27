@@ -27,6 +27,11 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Prepare embedded Flutter module
+        run: |
+          flutter pub get --directory=flutter_module
+          test -f flutter_module/.android/include_flutter.groovy
+
       - name: Flutter doctor
         run: flutter doctor -v
 
