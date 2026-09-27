@@ -475,7 +475,7 @@ private fun ReexIdeScreen(
                                     LocalCommandRunner().run(projectRoot, parts, 300)
                                 }
                                 withContext(Dispatchers.Main) {
-                                    terminalOutput += result?.output.orEmpty()
+                                    terminalOutput += result.output
                                     terminalRunning = false
                                 }
                             }
