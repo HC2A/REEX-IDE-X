@@ -470,8 +470,7 @@ private fun ReexIdeScreen(
                             scope.launch(Dispatchers.IO) {
                                 val parts = terminalCommand.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
                                 val result = if (parts.isEmpty()) {
-                                    BuildResult(false, null, null, "Empty command")
-                                    null
+                                    com.reex.idex.core.CommandResult(-1, "Empty command")
                                 } else {
                                     LocalCommandRunner().run(projectRoot, parts, 300)
                                 }
