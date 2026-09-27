@@ -84,7 +84,7 @@ dependencies {
     implementation("io.github.rosemoe:language-textmate:0.24.4")
     implementation("io.github.rosemoe:oniguruma-native:0.24.4")
 
-    // Official Flutter Android embedding. Engine artifacts are supplied by the Flutter Maven repository.
-    implementation("io.flutter:flutter_embedding_release:3.47.3")
+    // Generated Flutter add-to-app module (prepared by the local/CI Flutter toolchain).
+    implementation(project(":flutter"))
 
 }
