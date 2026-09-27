@@ -43,6 +43,9 @@ jobs:
           yes | sdkmanager --licenses >/dev/null || true
           sdkmanager --list_installed
 
+      - name: Run JVM unit tests
+        run: ./gradlew :app:testDebugUnitTest --no-daemon
+
       - name: Build Android release
         run: |
           chmod +x ./gradlew
