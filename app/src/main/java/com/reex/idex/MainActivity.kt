@@ -34,6 +34,7 @@ import com.reex.idex.core.TextMateEditorSupport
 import com.reex.idex.core.OfflineSessionStore
 import com.reex.idex.core.WorkspaceStore
 import com.reex.idex.core.FlutterRuntimeLauncher
+import com.reex.idex.core.OfflineToolchainManager
 import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -142,6 +143,9 @@ private fun ReexIdeScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
+    var showToolchain by remember { mutableStateOf(false) }
+    val toolchain = remember { OfflineToolchainManager(activity) }
+    var toolchainStatus by remember { mutableStateOf(toolchain.status()) }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
@@ -169,6 +173,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onRunFlutter) { Text("RUN FLUTTER") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -411,6 +416,36 @@ private fun ReexIdeScreen(
     }
 
 
+
+    if (showToolchain) {
+        val status = toolchainStatus
+        AlertDialog(
+            onDismissRequest = { showToolchain = false },
+            title = { Text(if (arabic) "بيئة العمل المحلية" else "Offline Toolchain") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (status.active) "ACTIVE" else "NOT READY", fontWeight = FontWeight.Bold)
+                    Text("Verification: " + status.verification, fontSize = 12.sp)
+                    Text("Flutter: " + status.flutter.absolutePath, fontSize = 10.sp)
+                    Text("Dart: " + status.dart.absolutePath, fontSize = 10.sp)
+                    Text("Android SDK: " + status.androidSdk.absolutePath, fontSize = 10.sp)
+                    Text("Pub cache: " + status.pubCache.absolutePath, fontSize = 10.sp)
+                    Text(
+                        if (arabic)
+                            "لن يتم تفعيل Toolchain إلا بعد التحقق من SHA-256."
+                        else
+                            "The toolchain is activated only after SHA-256 verification.",
+                        fontSize = 11.sp
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showToolchain = false }) {
+                    Text(if (arabic) "إغلاق" else "Close")
+                }
+            }
+        )
+    }
 
     if (showSnippets) {
         val snippets = listOf(
