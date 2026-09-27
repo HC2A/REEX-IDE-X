@@ -19,5 +19,10 @@ dependencyResolutionManagement {
     }
 }
 
+val flutterModuleInclude = file("$rootDir/flutter_module/.android/include_flutter.groovy")
+if (flutterModuleInclude.exists()) {
+    apply(from = flutterModuleInclude)
+}
+
 rootProject.name = "REEX-IDE-X"
 include(":app")
