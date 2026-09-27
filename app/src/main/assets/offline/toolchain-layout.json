@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "directories": {
+    "root": "files/toolchains",
+    "flutter": "files/toolchains/flutter",
+    "dart": "files/toolchains/flutter/bin/cache/dart-sdk",
+    "androidSdk": "files/toolchains/android-sdk",
+    "gradle": "files/toolchains/gradle",
+    "pubCache": "files/toolchains/pub-cache",
+    "artifacts": "files/toolchains/flutter/bin/cache/artifacts"
+  },
+  "activation": {
+    "marker": "files/toolchains/.active.json",
+    "sha256": "required"
+  }
+}
