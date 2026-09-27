@@ -35,6 +35,10 @@ import com.reex.idex.core.OfflineSessionStore
 import com.reex.idex.core.WorkspaceStore
 import com.reex.idex.core.FlutterRuntimeLauncher
 import com.reex.idex.core.OfflineToolchainManager
+import com.reex.idex.core.FlutterBuildService
+import com.reex.idex.core.BuildResult
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -144,6 +148,10 @@ private fun ReexIdeScreen(
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
     var showToolchain by remember { mutableStateOf(false) }
+    var showBuild by remember { mutableStateOf(false) }
+    var building by remember { mutableStateOf(false) }
+    var buildResult by remember { mutableStateOf<BuildResult?>(null) }
+    val scope = rememberCoroutineScope()
     val toolchain = remember { OfflineToolchainManager(activity) }
     var toolchainStatus by remember { mutableStateOf(toolchain.status()) }
 
@@ -171,6 +179,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
                     TextButton(onClick = onRunFlutter) { Text("RUN FLUTTER") }
+                    TextButton(onClick = { showBuild = true }) { Text("BUILD") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
                     TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
@@ -416,6 +425,48 @@ private fun ReexIdeScreen(
     }
 
 
+
+
+    if (showBuild) {
+        AlertDialog(
+            onDismissRequest = { if (!building) showBuild = false },
+            title = { Text(if (arabic) "بناء APK محلي" else "Local APK Build") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (building) "Building arm64-v8a Flutter release…" 
+                        else "Builds the current workspace with the verified local Flutter toolchain."
+                    )
+                    buildResult?.let { result ->
+                        Text(if (result.success) "BUILD SUCCESS" else "BUILD FAILED", fontWeight = FontWeight.Bold)
+                        result.sha256?.let { Text("SHA-256: $it", fontSize = 10.sp) }
+                        Text(result.log.takeLast(5000), fontSize = 9.sp)
+                    }
+                }
+            },
+            confirmButton = {
+                Row {
+                    TextButton(
+                        enabled = !building,
+                        onClick = {
+                            building = true
+                            buildResult = null
+                            scope.launch(Dispatchers.IO) {
+                                val result = FlutterBuildService(activity).build(projectRoot)
+                                withContext(Dispatchers.Main) {
+                                    buildResult = result
+                                    building = false
+                                }
+                            }
+                        }
+                    ) { Text(if (building) "BUILDING…" else "BUILD") }
+                    TextButton(enabled = !building, onClick = { showBuild = false }) {
+                        Text(if (arabic) "إغلاق" else "Close")
+                    }
+                }
+            }
+        )
+    }
 
     if (showToolchain) {
         val status = toolchainStatus
