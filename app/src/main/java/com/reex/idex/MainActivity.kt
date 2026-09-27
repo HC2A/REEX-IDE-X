@@ -33,6 +33,7 @@ import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.TextMateEditorSupport
 import com.reex.idex.core.OfflineSessionStore
 import com.reex.idex.core.WorkspaceStore
+import com.reex.idex.core.FlutterRuntimeLauncher
 import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -74,6 +75,7 @@ class MainActivity : ComponentActivity() {
                     onToggleLanguage = { arabic = !arabic },
                     onOpen = { openFile.launch(arrayOf("text/*", "application/octet-stream", "*/*")) },
                     onSave = { saveFile.launch(currentFile) },
+                    onRunFlutter = { FlutterRuntimeLauncher.launch(this, projectRootPath(this), currentFile) },
                     onOpenWorkspaceFile = { file ->
                         runCatching {
                             editor?.setText(file.readText(Charsets.UTF_8))
@@ -85,6 +87,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
+
+private fun projectRootPath(activity: MainActivity): String = WorkspaceStore(activity).ensureDefaultProject().absolutePath
 
 private const val DEFAULT_DART = """import 'package:flutter/material.dart';
 
@@ -117,6 +121,7 @@ private fun ReexIdeScreen(
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onSave: () -> Unit,
+    onRunFlutter: () -> Unit,
     onOpenWorkspaceFile: (File) -> Unit
 ) {
     var panel by remember { mutableStateOf("problems") }
@@ -161,6 +166,7 @@ private fun ReexIdeScreen(
                     }) { Text("NEW") }
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
+                    TextButton(onClick = onRunFlutter) { Text("RUN FLUTTER") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { showCompletion = true }) { Text("AI") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
