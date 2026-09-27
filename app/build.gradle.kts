@@ -12,8 +12,8 @@ android {
         applicationId = "com.reex.idex"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "4.0.0-editor"
+        versionCode = 41
+        versionName = "4.1.0-offline-foundation"
         ndk {
             abiFilters += listOf("arm64-v8a")
         }
