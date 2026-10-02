@@ -199,11 +199,23 @@ class DartLanguageServer(private val toolchain: OfflineToolchainManager) {
 
     private fun handleMessage(message: JSONObject) {
         val id = message.optInt("id", -1)
+        val method = message.optString("method", "")
+        if (id > 0 && method.isNotBlank()) {
+            val result = when (method) {
+                "workspace/configuration" -> JSONArray()
+                "client/registerCapability", "client/unregisterCapability" -> JSONObject()
+                "workspace/applyEdit" -> JSONObject().put("applied", false)
+                else -> JSONObject()
+            }
+            runCatching {
+                sendMessage(JSONObject().put("jsonrpc", "2.0").put("id", id).put("result", result))
+            }
+            return
+        }
         if (id > 0) {
             val future = pending.remove(id) ?: return
             if (message.has("error")) {
-                future.complete(JSONObject()
-                    .put("errorCodeOrZero", message.optJSONObject("error")?.optInt("code", -1) ?: -1))
+                future.complete(JSONObject().put("errorCodeOrZero", message.optJSONObject("error")?.optInt("code", -1) ?: -1))
             } else {
                 future.complete(message.put("errorCodeOrZero", 0))
             }
