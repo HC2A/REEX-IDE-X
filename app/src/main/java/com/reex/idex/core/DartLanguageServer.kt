@@ -46,7 +46,7 @@ class DartLanguageServer(private val toolchain: OfflineToolchainManager) {
             )
             process = ProcessBuilder(dart.absolutePath, "language-server", "--protocol=lsp")
                 .directory(project)
-                .redirectErrorStream(true)
+                .redirectErrorStream(false)
                 .apply { environment().putAll(env) }
                 .start()
             output = process!!.outputStream
@@ -167,29 +167,33 @@ class DartLanguageServer(private val toolchain: OfflineToolchainManager) {
     }
 
     private fun readLoop(input: InputStream) {
-        val reader = input.bufferedReader(StandardCharsets.UTF_8)
         try {
             while (process?.isAlive == true) {
                 var length = -1
-                while (true) {
-                    val line = reader.readLine() ?: return
-                    if (line.isEmpty()) break
+                var line = readAsciiLine(input) ?: return
+                while (line.isNotEmpty()) {
                     if (line.startsWith("Content-Length:", true)) {
                         length = line.substringAfter(":").trim().toIntOrNull() ?: -1
                     }
+                    line = readAsciiLine(input) ?: return
                 }
                 if (length <= 0) continue
-                val chars = CharArray(length)
-                var read = 0
-                while (read < length) {
-                    val n = reader.read(chars, read, length - read)
-                    if (n < 0) return
-                    read += n
-                }
-                handleMessage(JSONObject(String(chars)))
+                val bytes = input.readNBytes(length)
+                if (bytes.size != length) return
+                handleMessage(JSONObject(String(bytes, StandardCharsets.UTF_8)))
             }
         } catch (_: Throwable) {
             stop()
+        }
+    }
+
+    private fun readAsciiLine(input: InputStream): String? {
+        val buffer = java.io.ByteArrayOutputStream()
+        while (true) {
+            val b = input.read()
+            if (b < 0) return if (buffer.size() == 0) null else buffer.toString("US-ASCII")
+            if (b == 10) return buffer.toString("US-ASCII").removeSuffix("\r")
+            buffer.write(b)
         }
     }
 
