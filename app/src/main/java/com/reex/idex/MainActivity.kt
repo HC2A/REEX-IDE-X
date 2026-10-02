@@ -40,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import android.widget.Toast
 import com.reex.idex.core.FlutterPreviewService
 import com.reex.idex.core.DartToolingService
+import com.reex.idex.core.OfflineToolchainManager
 import com.reex.idex.core.Severity
 
 class MainActivity : ComponentActivity() {
@@ -172,7 +173,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
-                    TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = { requestCompletion() }) { Text("LSP") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -279,13 +280,12 @@ private fun ReexIdeScreen(
                         }
                     }
                     "tree" -> LazyColumn(Modifier.padding(10.dp)) {
-                        val names = listOf(
-                            "MaterialApp", "Scaffold", "AppBar", "Column", "Row",
-                            "Center", "Container", "Text", "Padding", "ListView",
-                            "ElevatedButton", "TextField"
-                        ).filter { code.contains(it + "(") }
-                        items(names) { Text("└─ " + it, fontSize = 12.sp) }
-                        if (names.isEmpty()) item { Text("No recognized widgets") }
+                        items(ProjectTree.fromWorkspace(projectRoot)) { node ->
+                            Text(
+                                ("  ".repeat(node.depth)) + (if (node.isFolder) "▸ " else "• ") + node.relativePath,
+                                fontSize = 12.sp
+                            )
+                        }
                     }
                     else -> Column(Modifier.padding(10.dp)) {
                         Text("REEX IDE X • OFFLINE EDITOR")
