@@ -1,6 +1,7 @@
 package com.reex.idex.core
 
 import java.io.File
+import kotlin.io.path.createTempDirectory
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -8,7 +9,7 @@ import org.junit.Test
 class WorkspaceStoreTest {
     @Test
     fun pathTraversalIsRejected() {
-        val project = createTempDir(prefix = "reex-workspace-")
+        val project = createTempDirectory(prefix = "reex-workspace-").toFile()
         try {
             val store = WorkspaceStoreFake(project)
             var rejected = false
