@@ -47,6 +47,8 @@ import com.reex.idex.core.FlutterPreviewService
 import com.reex.idex.core.DartToolingService
 import com.reex.idex.core.OfflineToolchainManager
 import com.reex.idex.core.Severity
+import com.reex.idex.core.AiKeyStore
+import com.reex.idex.core.AiProjectAgent
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
@@ -153,6 +155,11 @@ private fun ReexIdeScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
+    var showAi by remember { mutableStateOf(false) }
+    var aiRequest by remember { mutableStateOf("") }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiStatus by remember { mutableStateOf("") }
+    var aiKey by remember { mutableStateOf(AiKeyStore(activity).readKey()) }
 
     var completionItems by remember { mutableStateOf<List<CompletionItem>>(emptyList()) }
     var terminalInput by remember { mutableStateOf("") }
@@ -225,6 +232,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onSave) { Text("SAVE") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
                     TextButton(onClick = { requestCompletion() }) { Text("LSP") }
+                    TextButton(onClick = { showAi = true }) { Text("AI") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -298,6 +306,7 @@ private fun ReexIdeScreen(
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
                 FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("TERMINAL") })
+                FilterChip(selected = false, onClick = { showAi = true }, label = { Text("AI AGENT") })
             }
 
             AndroidView(
@@ -393,6 +402,49 @@ private fun ReexIdeScreen(
                 TextButton(onClick = { showProject = false }) {
                     Text(if (arabic) "إغلاق" else "Close")
                 }
+            }
+        )
+    }
+
+    if (showAi) {
+        AlertDialog(
+            onDismissRequest = { if (!aiBusy) showAi = false },
+            title = { Text(if (arabic) "مفتاح الذكاء الاصطناعي + وكيل المشروع" else "AI Key + Project Agent") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = aiKey, onValueChange = { aiKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("API key") })
+                    OutlinedTextField(value = aiRequest, onValueChange = { aiRequest = it }, modifier = Modifier.fillMaxWidth(), minLines = 4,
+                        label = { Text(if (arabic) "ماذا تريد من AI؟" else "Project task") },
+                        placeholder = { Text("Fix, analyze, build or refactor the whole project") })
+                    if (aiStatus.isNotBlank()) Text(aiStatus, fontSize = 12.sp)
+                    Text(if (arabic) "المفتاح يُحفظ مشفراً في Android Keystore. الوكيل يقرأ ويعدل ملفات المشروع داخل مساحة العمل فقط."
+                        else "The key is encrypted with Android Keystore. The agent can read and edit files only inside the workspace.", fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                Button(enabled = !aiBusy, onClick = {
+                    AiKeyStore(activity).saveKey(aiKey)
+                    if (aiRequest.isBlank()) aiStatus = if (arabic) "تم حفظ المفتاح." else "Key saved."
+                    else {
+                        aiBusy = true
+                        aiStatus = if (arabic) "AI يعمل على المشروع..." else "AI is working on the project..."
+                        scope.launch(Dispatchers.IO) {
+                            val result = AiProjectAgent(activity).run(projectRoot, aiRequest)
+                            withContext(Dispatchers.Main) {
+                                aiBusy = false
+                                aiStatus = if (result.success) "OK: " + result.message + "\nChanged: " + result.changedFiles.joinToString(", ") else result.message
+                                val file = File(projectRoot, activeRelativePath)
+                                if (result.success && file.isFile) {
+                                    val updated = file.readText(Charsets.UTF_8)
+                                    activity.editor?.setText(updated)
+                                    code = updated
+                                }
+                            }
+                        }
+                    }
+                }) { Text(if (aiBusy) "WORKING..." else "SAVE / RUN") }
+            },
+            dismissButton = { TextButton(onClick = { AiKeyStore(activity).clear(); aiKey = ""; aiStatus = "Key cleared." }) { Text("CLEAR KEY") }
             }
         )
     }
