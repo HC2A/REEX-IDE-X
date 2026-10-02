@@ -178,8 +178,13 @@ class DartLanguageServer(private val toolchain: OfflineToolchainManager) {
                     line = readAsciiLine(input) ?: return
                 }
                 if (length <= 0) continue
-                val bytes = input.readNBytes(length)
-                if (bytes.size != length) return
+                val bytes = ByteArray(length)
+                var read = 0
+                while (read < length) {
+                    val n = input.read(bytes, read, length - read)
+                    if (n < 0) return
+                    read += n
+                }
                 handleMessage(JSONObject(String(bytes, StandardCharsets.UTF_8)))
             }
         } catch (_: Throwable) {
