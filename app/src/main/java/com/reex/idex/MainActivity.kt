@@ -40,6 +40,7 @@ import androidx.compose.material3.OutlinedTextField
 import android.widget.Toast
 import com.reex.idex.core.FlutterPreviewService
 import com.reex.idex.core.DartToolingService
+import com.reex.idex.core.Severity
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
