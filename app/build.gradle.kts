@@ -9,6 +9,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        ndk { abiFilters += listOf("arm64-v8a") }
         applicationId = "com.reex.idex"
         minSdk = 24
         targetSdk = 36
