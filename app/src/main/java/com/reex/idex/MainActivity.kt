@@ -186,7 +186,8 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onRunFlutter) { Text("RUN FLUTTER") }
                     TextButton(onClick = { showBuild = true }) { Text("BUILD") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
-                    TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = { showCompletion = true }) { Text("COMPLETE") }
+                    TextButton(onClick = { showPreview = true }) { Text("PREVIEW") }
                     TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
                     TextButton(onClick = { showTerminal = true }) { Text("TERMINAL") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
