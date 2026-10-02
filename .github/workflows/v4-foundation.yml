@@ -4,15 +4,15 @@ on:
   push:
     branches:
       - reex-ide-v4-offline-foundation
-  workflow_dispatch:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,14 +30,16 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Prepare embedded Flutter module
-        run: |
-          flutter pub get --directory=flutter_module
-          test -f flutter_module/.android/include_flutter.groovy
-
       - name: Flutter doctor
         run: flutter doctor -v
-\n      - name: Prepare embedded Flutter module\n        working-directory: flutter_module\n        run: |\n          flutter pub get\n          flutter build aar --no-profile --no-release\n
+
+      - name: Prepare embedded Flutter module
+        working-directory: flutter_module
+        run: |
+          flutter pub get
+          test -f .android/include_flutter.groovy
+          flutter build aar
+
       - name: Android SDK verification
         run: |
           yes | sdkmanager --licenses >/dev/null || true
@@ -58,8 +60,8 @@ jobs:
           APK="$(find app/build/outputs/apk -type f -name '*.apk' | head -n 1)"
           test -n "$APK"
           test -s "$APK"
+          unzip -l "$APK" | grep -q 'lib/arm64-v8a/'
           sha256sum "$APK" | tee apk.sha256
-          unzip -l "$APK" | grep -q 'lib/arm64-v8a/' || true
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
