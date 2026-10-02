@@ -147,7 +147,7 @@ private fun ReexIdeScreen(
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
-    var showCompletion by remember { mutableStateOf(false) }
+    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    val toolchain = remember { ToolchainManager(activity) }
     var showToolchain by remember { mutableStateOf(false) }
     var showBuild by remember { mutableStateOf(false) }
     var showTerminal by remember { mutableStateOf(false) }
@@ -190,7 +190,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = { showPreview = true }) { Text("PREVIEW") }
                     TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
                     TextButton(onClick = { showTerminal = true }) { Text("TERMINAL") }
-                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
+                    TextButton(onClick = { showToolchain = true }) { Text("SDK") }\n                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
         },
@@ -397,6 +397,31 @@ private fun ReexIdeScreen(
         )
     }
 
+    if (showToolchain) {
+        val status = toolchain.status()
+        AlertDialog(
+            onDismissRequest = { showToolchain = false },
+            title = { Text(if (arabic) "بيئة Flutter المحلية" else "Local Flutter Toolchain") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Flutter ${status.flutterVersion}")
+                    Text("ABI: ${status.primaryAbi}")
+                    Text(if (status.ready) "READY • offline environment available" else "NOT READY • prepare toolchain first")
+                    Text("Flutter: ${status.flutterHome.path}", fontSize = 10.sp)
+                    Text("Android SDK: ${status.androidSdk.path}", fontSize = 10.sp)
+                    Text("Pub cache: ${status.pubCache.path}", fontSize = 10.sp)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { toolchain.prepareDirectories(); showToolchain = false }) {
+                    Text(if (arabic) "تهيئة المجلدات" else "Prepare")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showToolchain = false }) { Text(if (arabic) "إغلاق" else "Close") }
+            }
+        )
+    }
     if (showCompletion) {
         val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
         val suggestions = CompletionEngine.suggest(prefix, code)
