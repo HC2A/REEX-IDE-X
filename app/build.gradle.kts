@@ -84,7 +84,7 @@ dependencies {
     implementation("io.github.rosemoe:language-textmate:0.24.4")
     implementation("io.github.rosemoe:oniguruma-native:0.24.4")
 
-    // Generated Flutter add-to-app module (prepared by the local/CI Flutter toolchain).
-    implementation(project(":flutter"))
+    testImplementation("junit:junit:4.13.2")
 
+    implementation(project(":flutter"))
 }
