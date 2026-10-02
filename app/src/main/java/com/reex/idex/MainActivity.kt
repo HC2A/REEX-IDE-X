@@ -297,66 +297,6 @@ private fun ReexIdeScreen(
         }
     }
 
-    if (false) {
-        Dialog(
-            onDismissRequest = { showPreview = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(Modifier.fillMaxSize(), color = Color(0xFF050914)) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("REEX AIDE • LOCAL SIMULATOR", fontWeight = FontWeight.Bold)
-                            Text(
-                                if (arabic) "محاكاة واجهة محلية"
-                                else "Compose-only local simulator",
-                                fontSize = 11.sp
-                            )
-                        }
-                        TextButton(onClick = { showPreview = false }) {
-                            Text(if (arabic) "إغلاق" else "CLOSE")
-                        }
-                    }
-                    Box(
-                        Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Surface(
-                            Modifier.fillMaxWidth().fillMaxHeight(0.88f),
-                            shape = MaterialTheme.shapes.large,
-                            color = Color(0xFFF8FAFC)
-                        ) {
-                            Column(
-                                Modifier.fillMaxSize().padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    "REEX AIDE",
-                                    fontSize = 28.sp,
-                                    color = Color(0xFF0F172A),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(24.dp))
-                                Text(
-                                    Regex("""Text\(['"]([^'"]+)""").find(code)?.groupValues?.getOrNull(1)
-                                        ?: "Hello Flutter",
-                                    fontSize = 22.sp,
-                                    color = Color(0xFF111827)
-                                )
-                                Spacer(Modifier.height(20.dp))
-                                Text("LOCAL SIMULATOR • USE RUN FLUTTER FOR THE REAL ENGINE", color = Color(0xFF64748B), fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-
     if (showProject) {
         AlertDialog(
             onDismissRequest = { showProject = false },
