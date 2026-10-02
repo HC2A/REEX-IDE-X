@@ -46,7 +46,11 @@ class AiProjectAgent(private val context: Context) {
         return "USER REQUEST:\n" + request + "\n\nPROJECT FILES:\n" + files
     }
     private fun applyPlan(root: File, raw: String): AiAgentResult {
-        val json = JSONObject(raw.trim())
+        val text = raw.trim()
+        val start = text.indexOf('{')
+        val end = text.lastIndexOf('}')
+        if (start < 0 || end <= start) return AiAgentResult(false, "AI returned no JSON action plan.")
+        val json = JSONObject(text.substring(start, end + 1))
         val actions = json.optJSONArray("actions") ?: JSONArray()
         val changed = mutableListOf<String>()
         for (i in 0 until actions.length()) {
