@@ -39,6 +39,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
 import android.widget.Toast
 import com.reex.idex.core.FlutterPreviewService
+import com.reex.idex.core.DartToolingService
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
@@ -142,7 +143,13 @@ private fun ReexIdeScreen(
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
-        diagnostics = DartSourceAnalyzer.analyze(code)
+        workspaceStore.saveText(projectRoot, activeRelativePath, code)
+        val tooling = DartToolingService(OfflineToolchainManager(activity)).analyze(projectRoot)
+        diagnostics = if (tooling.success) {
+            tooling.diagnostics.ifEmpty { listOf(com.reex.idex.core.Diagnostic(Severity.INFO, "Dart analyzer: no diagnostics", 1, 1)) }
+        } else {
+            DartSourceAnalyzer.analyze(code)
+        }
         panel = "problems"
     }
 
@@ -200,6 +207,17 @@ private fun ReexIdeScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
+                FilterChip(selected = false, onClick = {
+                    val file = File(projectRoot, activeRelativePath)
+                    val result = DartToolingService(OfflineToolchainManager(activity)).format(projectRoot, file)
+                    if (result.exitCode == 0 && file.isFile) {
+                        val formatted = file.readText(Charsets.UTF_8)
+                        activity.editor?.setText(formatted)
+                        code = formatted
+                    } else {
+                        Toast.makeText(activity, result.output.take(2000), Toast.LENGTH_LONG).show()
+                    }
+                }, label = { Text("FORMAT") })
                 FilterChip(selected = false, onClick = {
                     val result = FlutterPreviewService(activity).prepareAndLaunch(projectRoot, activeRelativePath)
                     if (!result.success) {
