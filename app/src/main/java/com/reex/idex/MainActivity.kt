@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.os.Build
 import android.net.Uri
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +30,9 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.subscribeAlways
 import com.reex.idex.core.DartSourceAnalyzer
 import com.reex.idex.core.CompletionEngine
+import com.reex.idex.core.CompletionItem
+import com.reex.idex.core.DartLanguageServer
+import com.reex.idex.core.TerminalService
 import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.TextMateEditorSupport
@@ -143,6 +148,46 @@ private fun ReexIdeScreen(
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
 
+    var completionItems by remember { mutableStateOf<List<CompletionItem>>(emptyList()) }
+    var terminalInput by remember { mutableStateOf("") }
+    var terminalOutput by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    fun requestCompletion() {
+        val source = activity.editor?.text?.toString().orEmpty()
+        workspaceStore.saveText(projectRoot, activeRelativePath, source)
+        showCompletion = true
+        completionItems = emptyList()
+        scope.launch(Dispatchers.IO) {
+            val file = File(projectRoot, activeRelativePath)
+            val server = DartLanguageServer(OfflineToolchainManager(activity))
+            val lastLine = source.lines().lastOrNull().orEmpty()
+            val lsp = if (server.open(projectRoot, file, source)) {
+                server.completion(file, source.lines().lastIndex.coerceAtLeast(0), lastLine.length)
+            } else emptyList()
+            server.stop()
+            val items = if (lsp.isNotEmpty()) {
+                lsp.map { CompletionItem(it.label, it.detail.ifBlank { "Dart LSP" }, it.insertText ?: it.label) }
+            } else {
+                CompletionEngine.suggest(lastLine.substringAfterLast(Regex("[^A-Za-z0-9_]")), source)
+            }
+            withContext(Dispatchers.Main) { completionItems = items }
+        }
+    }
+
+    fun runTerminal() {
+        val command = terminalInput.trim()
+        if (command.isBlank()) return
+        terminalInput = ""
+        scope.launch(Dispatchers.IO) {
+            val result = TerminalService().execute(projectRoot, command)
+            withContext(Dispatchers.Main) {
+                terminalOutput = "\$ $command\n${result.output}\n[exit ${result.exitCode}]\n" + terminalOutput
+                panel = "console"
+            }
+        }
+    }
+
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
         workspaceStore.saveText(projectRoot, activeRelativePath, code)
@@ -246,7 +291,7 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
-                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
+                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("TERMINAL") })
             }
 
             AndroidView(
@@ -266,7 +311,7 @@ private fun ReexIdeScreen(
             )
 
             Surface(
-                Modifier.fillMaxWidth().height(120.dp),
+                Modifier.fillMaxWidth().height(if (panel == "console") 190.dp else 120.dp),
                 color = Color(0xFF0A1018)
             ) {
                 when (panel) {
@@ -288,9 +333,19 @@ private fun ReexIdeScreen(
                         }
                     }
                     else -> Column(Modifier.padding(10.dp)) {
-                        Text("REEX IDE X • OFFLINE EDITOR")
-                        Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = terminalInput,
+                                onValueChange = { terminalInput = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                placeholder = { Text("shell command") }
+                            )
+                            Button(onClick = { runTerminal() }) { Text("RUN") }
+                        }
+                        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                            item { Text(terminalOutput.ifBlank { "Local terminal ready • workspace: ${projectRoot.name}" }, fontSize = 12.sp) }
+                        }
                     }
                 }
             }
@@ -337,8 +392,7 @@ private fun ReexIdeScreen(
     }
 
     if (showCompletion) {
-        val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
-        val suggestions = CompletionEngine.suggest(prefix, code)
+        val suggestions = completionItems
         AlertDialog(
             onDismissRequest = { showCompletion = false },
             title = { Text(if (arabic) "الإكمال الذكي" else "Smart Completion") },
