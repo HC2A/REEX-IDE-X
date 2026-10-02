@@ -4,7 +4,7 @@ import android.content.Context
 import java.io.File
 import java.security.MessageDigest
 
-data class ToolchainStatus(
+data class OfflineToolchainStatus(
     val root: File,
     val flutter: File,
     val dart: File,
@@ -26,16 +26,16 @@ class OfflineToolchainManager(context: Context) {
         base.mkdirs()
     }
 
-    fun status(): ToolchainStatus {
+    fun status(): OfflineToolchainStatus {
         val active = marker.isFile && flutter.isDirectory && dart.isDirectory &&
             androidSdk.isDirectory && pubCache.isDirectory
         val verification = if (!marker.isFile) {
             "NOT_INITIALIZED"
         } else {
             val text = runCatching { marker.readText(Charsets.UTF_8) }.getOrDefault("")
-            if (text.contains(""verified":true")) "VERIFIED" else "UNVERIFIED"
+            if (text.contains("\"verified\":true")) "VERIFIED" else "UNVERIFIED"
         }
-        return ToolchainStatus(base, flutter, dart, androidSdk, pubCache, active, verification)
+        return OfflineToolchainStatus(base, flutter, dart, androidSdk, pubCache, active, verification)
     }
 
     fun activateVerified(root: File, expectedSha256: String): Boolean {
@@ -51,7 +51,11 @@ class OfflineToolchainManager(context: Context) {
         return true
     }
 
-    fun prepareDirectories() {\n        listOf(flutter, dart, androidSdk, pubCache, File(base, "gradle-cache")).forEach { it.mkdirs() }\n    }\n\n    fun invalidate() {
+    fun prepareDirectories() {
+        listOf(flutter, dart, androidSdk, pubCache, File(base, "gradle-cache")).forEach { it.mkdirs() }
+    }
+
+    fun invalidate() {
         marker.delete()
     }
 
