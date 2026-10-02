@@ -37,7 +37,7 @@ jobs:
 
       - name: Flutter doctor
         run: flutter doctor -v
-
+\n      - name: Prepare embedded Flutter module\n        working-directory: flutter_module\n        run: |\n          flutter pub get\n          flutter build aar --no-profile --no-release\n
       - name: Android SDK verification
         run: |
           yes | sdkmanager --licenses >/dev/null || true
