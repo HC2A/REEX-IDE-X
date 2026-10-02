@@ -42,8 +42,11 @@ jobs:
 
       - name: Android SDK verification
         run: |
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager --list_installed
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -name sdkmanager -type f | head -n 1)"; fi
+          test -x "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" --list_installed
 
       - name: Run JVM unit tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon
