@@ -53,6 +53,12 @@ class MainActivity : ComponentActivity() {
     private var currentFile by mutableStateOf("lib/main.dart")
     private var arabic by mutableStateOf(true)
 
+    override fun onDestroy() {
+        editor?.release()
+        editor = null
+        super.onDestroy()
+    }
+
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
