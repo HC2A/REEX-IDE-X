@@ -48,13 +48,16 @@ jobs:
           test -f .android/include_flutter.groovy
           flutter build aar
 
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
       - name: Run JVM unit tests
-        run: ./gradlew :app:testDebugUnitTest --no-daemon
+        run: gradle :app:testDebugUnitTest --no-daemon
 
       - name: Build Android release
-        run: |
-          chmod +x ./gradlew
-          ./gradlew :app:assembleRelease --no-daemon
+        run: gradle :app:assembleRelease --no-daemon
 
       - name: Verify APK
         shell: bash
