@@ -33,13 +33,6 @@ jobs:
       - name: Flutter doctor
         run: flutter doctor -v
 
-      - name: Prepare embedded Flutter module
-        working-directory: flutter_module
-        run: |
-          flutter pub get
-          test -f .android/include_flutter.groovy
-          flutter build aar
-
       - name: Android SDK verification
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -47,6 +40,13 @@ jobs:
           test -x "$SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" --list_installed
+
+      - name: Prepare embedded Flutter module
+        working-directory: flutter_module
+        run: |
+          flutter pub get
+          test -f .android/include_flutter.groovy
+          flutter build aar
 
       - name: Run JVM unit tests
         run: ./gradlew :app:testDebugUnitTest --no-daemon
