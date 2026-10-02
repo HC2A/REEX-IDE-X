@@ -147,7 +147,7 @@ private fun ReexIdeScreen(
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
-    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    val toolchain = remember { ToolchainManager(activity) }
+    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    val toolchain = remember { OfflineToolchainManager(activity) }
     var showToolchain by remember { mutableStateOf(false) }
     var showBuild by remember { mutableStateOf(false) }
     var showTerminal by remember { mutableStateOf(false) }
@@ -404,10 +404,10 @@ private fun ReexIdeScreen(
             title = { Text(if (arabic) "بيئة Flutter المحلية" else "Local Flutter Toolchain") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Flutter ${status.flutterVersion}")
-                    Text("ABI: ${status.primaryAbi}")
-                    Text(if (status.ready) "READY • offline environment available" else "NOT READY • prepare toolchain first")
-                    Text("Flutter: ${status.flutterHome.path}", fontSize = 10.sp)
+                    Text("Flutter 3.47.3")
+                    Text("ABI: arm64-v8a")
+                    Text(if (status.active && status.verification == "VERIFIED") "READY • verified offline environment" else "NOT READY • toolchain requires preparation")
+                    Text("Flutter: ${status.flutter.path}", fontSize = 10.sp)
                     Text("Android SDK: ${status.androidSdk.path}", fontSize = 10.sp)
                     Text("Pub cache: ${status.pubCache.path}", fontSize = 10.sp)
                 }
