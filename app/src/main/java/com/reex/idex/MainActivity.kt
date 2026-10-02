@@ -37,6 +37,8 @@ import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
+import android.widget.Toast
+import com.reex.idex.core.FlutterPreviewService
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
@@ -198,7 +200,12 @@ private fun ReexIdeScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
-                FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("SIMULATOR") })
+                FilterChip(selected = false, onClick = {
+                    val result = FlutterPreviewService(activity).prepareAndLaunch(projectRoot, activeRelativePath)
+                    if (!result.success) {
+                        Toast.makeText(activity, result.log.take(3000), Toast.LENGTH_LONG).show()
+                    }
+                }, label = { Text("RUN FLUTTER") })
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
                 FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
                 FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
@@ -271,7 +278,7 @@ private fun ReexIdeScreen(
         }
     }
 
-    if (showPreview) {
+    if (false) {
         Dialog(
             onDismissRequest = { showPreview = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
