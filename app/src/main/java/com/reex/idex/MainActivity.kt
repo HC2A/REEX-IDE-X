@@ -33,13 +33,6 @@ import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.TextMateEditorSupport
 import com.reex.idex.core.OfflineSessionStore
 import com.reex.idex.core.WorkspaceStore
-import com.reex.idex.core.FlutterRuntimeLauncher
-import com.reex.idex.core.OfflineToolchainManager
-import com.reex.idex.core.FlutterBuildService
-import com.reex.idex.core.BuildResult
-import com.reex.idex.core.LocalCommandRunner
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -81,7 +74,6 @@ class MainActivity : ComponentActivity() {
                     onToggleLanguage = { arabic = !arabic },
                     onOpen = { openFile.launch(arrayOf("text/*", "application/octet-stream", "*/*")) },
                     onSave = { saveFile.launch(currentFile) },
-                    onRunFlutter = { FlutterRuntimeLauncher.launch(this, projectRootPath(this), currentFile) },
                     onOpenWorkspaceFile = { file ->
                         runCatching {
                             editor?.setText(file.readText(Charsets.UTF_8))
@@ -93,8 +85,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 }
-
-private fun projectRootPath(activity: MainActivity): String = WorkspaceStore(activity).ensureDefaultProject().absolutePath
 
 private const val DEFAULT_DART = """import 'package:flutter/material.dart';
 
@@ -127,7 +117,6 @@ private fun ReexIdeScreen(
     onToggleLanguage: () -> Unit,
     onOpen: () -> Unit,
     onSave: () -> Unit,
-    onRunFlutter: () -> Unit,
     onOpenWorkspaceFile: (File) -> Unit
 ) {
     var panel by remember { mutableStateOf("problems") }
@@ -147,18 +136,7 @@ private fun ReexIdeScreen(
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
-    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    var buildLog by remember { mutableStateOf("") }\n    var building by remember { mutableStateOf(false) }\n    val scope = rememberCoroutineScope()\n    val toolchain = remember { OfflineToolchainManager(activity) }
-    var showToolchain by remember { mutableStateOf(false) }
-    var showBuild by remember { mutableStateOf(false) }
-    var showTerminal by remember { mutableStateOf(false) }
-    var terminalCommand by remember { mutableStateOf("flutter --version") }
-    var terminalOutput by remember { mutableStateOf("") }
-    var terminalRunning by remember { mutableStateOf(false) }
-    var building by remember { mutableStateOf(false) }
-    var buildResult by remember { mutableStateOf<BuildResult?>(null) }
-    val scope = rememberCoroutineScope()
-    val toolchain = remember { OfflineToolchainManager(activity) }
-    var toolchainStatus by remember { mutableStateOf(toolchain.status()) }
+    var showCompletion by remember { mutableStateOf(false) }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
@@ -183,14 +161,9 @@ private fun ReexIdeScreen(
                     }) { Text("NEW") }
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
-                    TextButton(onClick = onRunFlutter) { Text("RUN FLUTTER") }
-                    TextButton(onClick = { showBuild = true }) { Text("BUILD") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
-                    TextButton(onClick = { showCompletion = true }) { Text("COMPLETE") }
-                    TextButton(onClick = { showPreview = true }) { Text("PREVIEW") }
-                    TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
-                    TextButton(onClick = { showTerminal = true }) { Text("TERMINAL") }
-                    TextButton(onClick = {\n                        FlutterRuntimeLauncher.launch(activity, projectRoot.absolutePath, activeRelativePath)\n                    }) { Text("RUN") }\n                    TextButton(onClick = {\n                        building = true\n                        buildLog = "Building arm64-v8a..."\n                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {\n                            val result = FlutterBuildService(activity).build(projectRoot)\n                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {\n                                building = false\n                                buildLog = result.log + if (result.success) "\\n\\nAPK SHA-256: ${result.sha256}" else "\\n\\nBUILD FAILED"\n                            }\n                        }\n                    }, enabled = !building) { Text(if (building) "BUILD…" else "BUILD") }\n                    TextButton(onClick = { showToolchain = true }) { Text("SDK") }\n                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
+                    TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
         },
@@ -246,7 +219,7 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
-                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })\n                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("BUILD LOG") })
+                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
             }
 
             AndroidView(
@@ -291,7 +264,7 @@ private fun ReexIdeScreen(
                     else -> Column(Modifier.padding(10.dp)) {
                         Text("REEX IDE X • OFFLINE EDITOR")
                         Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)\n                        if (buildLog.isNotBlank()) Text(buildLog, fontSize = 10.sp)
+                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)
                     }
                 }
             }
@@ -397,31 +370,6 @@ private fun ReexIdeScreen(
         )
     }
 
-    if (showToolchain) {
-        val status = toolchain.status()
-        AlertDialog(
-            onDismissRequest = { showToolchain = false },
-            title = { Text(if (arabic) "بيئة Flutter المحلية" else "Local Flutter Toolchain") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Flutter 3.47.3")
-                    Text("ABI: arm64-v8a")
-                    Text(if (status.active && status.verification == "VERIFIED") "READY • verified offline environment" else "NOT READY • toolchain requires preparation")
-                    Text("Flutter: ${status.flutter.path}", fontSize = 10.sp)
-                    Text("Android SDK: ${status.androidSdk.path}", fontSize = 10.sp)
-                    Text("Pub cache: ${status.pubCache.path}", fontSize = 10.sp)
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { toolchain.prepareDirectories(); showToolchain = false }) {
-                    Text(if (arabic) "تهيئة المجلدات" else "Prepare")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showToolchain = false }) { Text(if (arabic) "إغلاق" else "Close") }
-            }
-        )
-    }
     if (showCompletion) {
         val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
         val suggestions = CompletionEngine.suggest(prefix, code)
@@ -457,134 +405,6 @@ private fun ReexIdeScreen(
     }
 
 
-
-
-
-    if (showTerminal) {
-        AlertDialog(
-            onDismissRequest = { if (!terminalRunning) showTerminal = false },
-            title = { Text(if (arabic) "طرفية المشروع" else "Project Terminal") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = terminalCommand,
-                        onValueChange = { terminalCommand = it },
-                        enabled = !terminalRunning,
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        label = { Text("Command") }
-                    )
-                    Surface(
-                        Modifier.fillMaxWidth().height(260.dp),
-                        color = Color(0xFF05070A)
-                    ) {
-                        Text(
-                            terminalOutput.ifBlank { "Ready." },
-                            fontSize = 9.sp,
-                            modifier = Modifier.padding(8.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Row {
-                    TextButton(
-                        enabled = !terminalRunning && terminalCommand.isNotBlank(),
-                        onClick = {
-                            terminalRunning = true
-                            terminalOutput = "$ " + terminalCommand + "\n"
-                            scope.launch(Dispatchers.IO) {
-                                val parts = terminalCommand.trim().split(Regex("\\s+")).filter { it.isNotBlank() }
-                                val result = if (parts.isEmpty()) {
-                                    com.reex.idex.core.CommandResult(-1, "Empty command")
-                                } else {
-                                    LocalCommandRunner().run(projectRoot, parts, 300)
-                                }
-                                withContext(Dispatchers.Main) {
-                                    terminalOutput += result.output
-                                    terminalRunning = false
-                                }
-                            }
-                        }
-                    ) { Text(if (terminalRunning) "RUNNING…" else "RUN") }
-                    TextButton(enabled = !terminalRunning, onClick = { showTerminal = false }) {
-                        Text(if (arabic) "إغلاق" else "Close")
-                    }
-                }
-            }
-        )
-    }
-
-    if (showBuild) {
-        AlertDialog(
-            onDismissRequest = { if (!building) showBuild = false },
-            title = { Text(if (arabic) "بناء APK محلي" else "Local APK Build") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(
-                        if (building) "Building arm64-v8a Flutter release…" 
-                        else "Builds the current workspace with the verified local Flutter toolchain."
-                    )
-                    buildResult?.let { result ->
-                        Text(if (result.success) "BUILD SUCCESS" else "BUILD FAILED", fontWeight = FontWeight.Bold)
-                        result.sha256?.let { Text("SHA-256: $it", fontSize = 10.sp) }
-                        Text(result.log.takeLast(5000), fontSize = 9.sp)
-                    }
-                }
-            },
-            confirmButton = {
-                Row {
-                    TextButton(
-                        enabled = !building,
-                        onClick = {
-                            building = true
-                            buildResult = null
-                            scope.launch(Dispatchers.IO) {
-                                val result = FlutterBuildService(activity).build(projectRoot)
-                                withContext(Dispatchers.Main) {
-                                    buildResult = result
-                                    building = false
-                                }
-                            }
-                        }
-                    ) { Text(if (building) "BUILDING…" else "BUILD") }
-                    TextButton(enabled = !building, onClick = { showBuild = false }) {
-                        Text(if (arabic) "إغلاق" else "Close")
-                    }
-                }
-            }
-        )
-    }
-
-    if (showToolchain) {
-        val status = toolchainStatus
-        AlertDialog(
-            onDismissRequest = { showToolchain = false },
-            title = { Text(if (arabic) "بيئة العمل المحلية" else "Offline Toolchain") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(if (status.active) "ACTIVE" else "NOT READY", fontWeight = FontWeight.Bold)
-                    Text("Verification: " + status.verification, fontSize = 12.sp)
-                    Text("Flutter: " + status.flutter.absolutePath, fontSize = 10.sp)
-                    Text("Dart: " + status.dart.absolutePath, fontSize = 10.sp)
-                    Text("Android SDK: " + status.androidSdk.absolutePath, fontSize = 10.sp)
-                    Text("Pub cache: " + status.pubCache.absolutePath, fontSize = 10.sp)
-                    Text(
-                        if (arabic)
-                            "لن يتم تفعيل Toolchain إلا بعد التحقق من SHA-256."
-                        else
-                            "The toolchain is activated only after SHA-256 verification.",
-                        fontSize = 11.sp
-                    )
-                }
-            },
-            confirmButton = {
-                TextButton(onClick = { showToolchain = false }) {
-                    Text(if (arabic) "إغلاق" else "Close")
-                }
-            }
-        )
-    }
 
     if (showSnippets) {
         val snippets = listOf(
