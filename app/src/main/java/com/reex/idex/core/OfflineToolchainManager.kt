@@ -51,7 +51,7 @@ class OfflineToolchainManager(context: Context) {
         return true
     }
 
-    fun invalidate() {
+    fun prepareDirectories() {\n        listOf(flutter, dart, androidSdk, pubCache, File(base, "gradle-cache")).forEach { it.mkdirs() }\n    }\n\n    fun invalidate() {
         marker.delete()
     }
 
