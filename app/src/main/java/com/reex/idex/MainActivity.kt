@@ -147,7 +147,7 @@ private fun ReexIdeScreen(
     var showPreview by remember { mutableStateOf(false) }
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
-    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    val toolchain = remember { OfflineToolchainManager(activity) }
+    var showCompletion by remember { mutableStateOf(false) }\n    var showToolchain by remember { mutableStateOf(false) }\n    var buildLog by remember { mutableStateOf("") }\n    var building by remember { mutableStateOf(false) }\n    val scope = rememberCoroutineScope()\n    val toolchain = remember { OfflineToolchainManager(activity) }
     var showToolchain by remember { mutableStateOf(false) }
     var showBuild by remember { mutableStateOf(false) }
     var showTerminal by remember { mutableStateOf(false) }
@@ -190,7 +190,7 @@ private fun ReexIdeScreen(
                     TextButton(onClick = { showPreview = true }) { Text("PREVIEW") }
                     TextButton(onClick = { toolchainStatus = toolchain.status(); showToolchain = true }) { Text("SDK") }
                     TextButton(onClick = { showTerminal = true }) { Text("TERMINAL") }
-                    TextButton(onClick = { showToolchain = true }) { Text("SDK") }\n                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
+                    TextButton(onClick = {\n                        FlutterRuntimeLauncher.launch(activity, projectRoot.absolutePath, activeRelativePath)\n                    }) { Text("RUN") }\n                    TextButton(onClick = {\n                        building = true\n                        buildLog = "Building arm64-v8a..."\n                        scope.launch(kotlinx.coroutines.Dispatchers.IO) {\n                            val result = FlutterBuildService(activity).build(projectRoot)\n                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {\n                                building = false\n                                buildLog = result.log + if (result.success) "\\n\\nAPK SHA-256: ${result.sha256}" else "\\n\\nBUILD FAILED"\n                            }\n                        }\n                    }, enabled = !building) { Text(if (building) "BUILD…" else "BUILD") }\n                    TextButton(onClick = { showToolchain = true }) { Text("SDK") }\n                    TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
         },
@@ -246,7 +246,7 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
-                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
+                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })\n                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("BUILD LOG") })
             }
 
             AndroidView(
@@ -291,7 +291,7 @@ private fun ReexIdeScreen(
                     else -> Column(Modifier.padding(10.dp)) {
                         Text("REEX IDE X • OFFLINE EDITOR")
                         Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)
+                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)\n                        if (buildLog.isNotBlank()) Text(buildLog, fontSize = 10.sp)
                     }
                 }
             }
