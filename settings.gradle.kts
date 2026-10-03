@@ -7,7 +7,7 @@ pluginManagement {
 }
 
 dependencyResolutionManagement {
-    repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
     repositories {
         google()
         mavenCentral()
@@ -17,6 +17,11 @@ dependencyResolutionManagement {
             maven { url = flutterRepo.toURI() }
         }
     }
+}
+
+val flutterModuleInclude = file("$rootDir/flutter_module/.android/include_flutter.groovy")
+if (flutterModuleInclude.exists()) {
+    apply(from = flutterModuleInclude)
 }
 
 rootProject.name = "REEX-IDE-X"

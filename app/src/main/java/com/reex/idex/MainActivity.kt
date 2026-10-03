@@ -4,6 +4,8 @@ import android.os.Bundle
 import android.os.Build
 import android.net.Uri
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -28,6 +30,9 @@ import io.github.rosemoe.sora.widget.CodeEditor
 import io.github.rosemoe.sora.widget.subscribeAlways
 import com.reex.idex.core.DartSourceAnalyzer
 import com.reex.idex.core.CompletionEngine
+import com.reex.idex.core.CompletionItem
+import com.reex.idex.core.DartLanguageServer
+import com.reex.idex.core.TerminalService
 import com.reex.idex.core.LanguageRegistry
 import com.reex.idex.core.ProjectTree
 import com.reex.idex.core.TextMateEditorSupport
@@ -37,11 +42,24 @@ import java.io.File
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.material3.OutlinedTextField
+import android.widget.Toast
+import com.reex.idex.core.FlutterPreviewService
+import com.reex.idex.core.DartToolingService
+import com.reex.idex.core.OfflineToolchainManager
+import com.reex.idex.core.Severity
+import com.reex.idex.core.AiKeyStore
+import com.reex.idex.core.AiProjectAgent
 
 class MainActivity : ComponentActivity() {
     internal var editor: CodeEditor? = null
     private var currentFile by mutableStateOf("lib/main.dart")
     private var arabic by mutableStateOf(true)
+
+    override fun onDestroy() {
+        editor?.release()
+        editor = null
+        super.onDestroy()
+    }
 
     private val openFile = registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -137,10 +155,61 @@ private fun ReexIdeScreen(
     var showSnippets by remember { mutableStateOf(false) }
     var showProject by remember { mutableStateOf(false) }
     var showCompletion by remember { mutableStateOf(false) }
+    var showAi by remember { mutableStateOf(false) }
+    var aiRequest by remember { mutableStateOf("") }
+    var aiBusy by remember { mutableStateOf(false) }
+    var aiStatus by remember { mutableStateOf("") }
+    var aiKey by remember { mutableStateOf(AiKeyStore(activity).readKey()) }
+
+    var completionItems by remember { mutableStateOf<List<CompletionItem>>(emptyList()) }
+    var terminalInput by remember { mutableStateOf("") }
+    var terminalOutput by remember { mutableStateOf("") }
+    val scope = rememberCoroutineScope()
+
+    fun requestCompletion() {
+        val source = activity.editor?.text?.toString().orEmpty()
+        workspaceStore.saveText(projectRoot, activeRelativePath, source)
+        showCompletion = true
+        completionItems = emptyList()
+        scope.launch(Dispatchers.IO) {
+            val file = File(projectRoot, activeRelativePath)
+            val server = DartLanguageServer(OfflineToolchainManager(activity))
+            val lastLine = source.lines().lastOrNull().orEmpty()
+            val lsp = if (server.open(projectRoot, file, source)) {
+                server.completion(file, source.lines().lastIndex.coerceAtLeast(0), lastLine.length)
+            } else emptyList()
+            server.stop()
+            val items = if (lsp.isNotEmpty()) {
+                lsp.map { CompletionItem(it.label, it.detail.ifBlank { "Dart LSP" }, it.insertText ?: it.label) }
+            } else {
+                CompletionEngine.suggest(Regex("[A-Za-z0-9_]+$").find(lastLine)?.value.orEmpty(), source)
+            }
+            withContext(Dispatchers.Main) { completionItems = items }
+        }
+    }
+
+    fun runTerminal() {
+        val command = terminalInput.trim()
+        if (command.isBlank()) return
+        terminalInput = ""
+        scope.launch(Dispatchers.IO) {
+            val result = TerminalService().execute(projectRoot, command)
+            withContext(Dispatchers.Main) {
+                terminalOutput = "\$ $command\n${result.output}\n[exit ${result.exitCode}]\n" + terminalOutput
+                panel = "console"
+            }
+        }
+    }
 
     fun analyze() {
         code = activity.editor?.text?.toString().orEmpty()
-        diagnostics = DartSourceAnalyzer.analyze(code)
+        workspaceStore.saveText(projectRoot, activeRelativePath, code)
+        val tooling = DartToolingService(OfflineToolchainManager(activity)).analyze(projectRoot)
+        diagnostics = if (tooling.success) {
+            tooling.diagnostics.ifEmpty { listOf(com.reex.idex.core.Diagnostic(Severity.INFO, "Dart analyzer: no diagnostics", 1, 1)) }
+        } else {
+            DartSourceAnalyzer.analyze(code)
+        }
         panel = "problems"
     }
 
@@ -162,7 +231,8 @@ private fun ReexIdeScreen(
                     TextButton(onClick = onOpen) { Text("OPEN") }
                     TextButton(onClick = onSave) { Text("SAVE") }
                     TextButton(onClick = { showProject = true }) { Text("EXPLORER") }
-                    TextButton(onClick = { showCompletion = true }) { Text("AI") }
+                    TextButton(onClick = { requestCompletion() }) { Text("LSP") }
+                    TextButton(onClick = { showAi = true }) { Text("AI") }
                     TextButton(onClick = onToggleLanguage) { Text(if (arabic) "EN" else "ع") }
                 }
             )
@@ -198,7 +268,23 @@ private fun ReexIdeScreen(
                 horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 FilterChip(selected = false, onClick = { analyze() }, label = { Text("ANALYZE") })
-                FilterChip(selected = false, onClick = { showPreview = true }, label = { Text("SIMULATOR") })
+                FilterChip(selected = false, onClick = {
+                    val file = File(projectRoot, activeRelativePath)
+                    val result = DartToolingService(OfflineToolchainManager(activity)).format(projectRoot, file)
+                    if (result.exitCode == 0 && file.isFile) {
+                        val formatted = file.readText(Charsets.UTF_8)
+                        activity.editor?.setText(formatted)
+                        code = formatted
+                    } else {
+                        Toast.makeText(activity, result.output.take(2000), Toast.LENGTH_LONG).show()
+                    }
+                }, label = { Text("FORMAT") })
+                FilterChip(selected = false, onClick = {
+                    val result = FlutterPreviewService(activity).prepareAndLaunch(projectRoot, activeRelativePath)
+                    if (!result.success) {
+                        Toast.makeText(activity, result.log.take(3000), Toast.LENGTH_LONG).show()
+                    }
+                }, label = { Text("RUN FLUTTER") })
                 FilterChip(selected = false, onClick = { showSnippets = true }, label = { Text("SNIPPETS") })
                 FilterChip(selected = false, onClick = { showProject = true }, label = { Text("PROJECT TREE") })
                 FilterChip(selected = false, onClick = { showCompletion = true }, label = { Text("SMART COMPLETE") })
@@ -219,7 +305,8 @@ private fun ReexIdeScreen(
                     code = fixed
                     diagnostics = DartSourceAnalyzer.analyze(fixed)
                 }, label = { Text("FIX SAFE") })
-                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("OFFLINE") })
+                FilterChip(selected = false, onClick = { panel = "console" }, label = { Text("TERMINAL") })
+                FilterChip(selected = false, onClick = { showAi = true }, label = { Text("AI AGENT") })
             }
 
             AndroidView(
@@ -239,7 +326,7 @@ private fun ReexIdeScreen(
             )
 
             Surface(
-                Modifier.fillMaxWidth().height(120.dp),
+                Modifier.fillMaxWidth().height(if (panel == "console") 190.dp else 120.dp),
                 color = Color(0xFF0A1018)
             ) {
                 when (panel) {
@@ -253,83 +340,32 @@ private fun ReexIdeScreen(
                         }
                     }
                     "tree" -> LazyColumn(Modifier.padding(10.dp)) {
-                        val names = listOf(
-                            "MaterialApp", "Scaffold", "AppBar", "Column", "Row",
-                            "Center", "Container", "Text", "Padding", "ListView",
-                            "ElevatedButton", "TextField"
-                        ).filter { code.contains(it + "(") }
-                        items(names) { Text("└─ " + it, fontSize = 12.sp) }
-                        if (names.isEmpty()) item { Text("No recognized widgets") }
-                    }
-                    else -> Column(Modifier.padding(10.dp)) {
-                        Text("REEX IDE X • OFFLINE EDITOR")
-                        Text("Structural analysis and editor actions run locally.", fontSize = 12.sp)
-                        Text("Editor runtime: local • no cloud build", fontSize = 12.sp)
-                    }
-                }
-            }
-        }
-    }
-
-    if (showPreview) {
-        Dialog(
-            onDismissRequest = { showPreview = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(Modifier.fillMaxSize(), color = Color(0xFF050914)) {
-                Column(Modifier.fillMaxSize()) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text("REEX AIDE • LOCAL SIMULATOR", fontWeight = FontWeight.Bold)
+                        items(ProjectTree.fromWorkspace(projectRoot)) { node ->
                             Text(
-                                if (arabic) "محاكاة واجهة محلية"
-                                else "Compose-only local simulator",
-                                fontSize = 11.sp
+                                ("  ".repeat(node.depth)) + (if (node.isFolder) "▸ " else "• ") + node.relativePath,
+                                fontSize = 12.sp
                             )
                         }
-                        TextButton(onClick = { showPreview = false }) {
-                            Text(if (arabic) "إغلاق" else "CLOSE")
-                        }
                     }
-                    Box(
-                        Modifier.fillMaxSize().padding(horizontal = 18.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Surface(
-                            Modifier.fillMaxWidth().fillMaxHeight(0.88f),
-                            shape = MaterialTheme.shapes.large,
-                            color = Color(0xFFF8FAFC)
-                        ) {
-                            Column(
-                                Modifier.fillMaxSize().padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Text(
-                                    "REEX AIDE",
-                                    fontSize = 28.sp,
-                                    color = Color(0xFF0F172A),
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Spacer(Modifier.height(24.dp))
-                                Text(
-                                    Regex("""Text\(['"]([^'"]+)""").find(code)?.groupValues?.getOrNull(1)
-                                        ?: "Hello Flutter",
-                                    fontSize = 22.sp,
-                                    color = Color(0xFF111827)
-                                )
-                                Spacer(Modifier.height(20.dp))
-                                Text("LOCAL SIMULATOR • USE RUN FLUTTER FOR THE REAL ENGINE", color = Color(0xFF64748B), fontSize = 11.sp)
-                            }
+                    else -> Column(Modifier.padding(10.dp)) {
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            OutlinedTextField(
+                                value = terminalInput,
+                                onValueChange = { terminalInput = it },
+                                modifier = Modifier.weight(1f),
+                                singleLine = true,
+                                placeholder = { Text("shell command") }
+                            )
+                            Button(onClick = { runTerminal() }) { Text("RUN") }
+                        }
+                        LazyColumn(Modifier.fillMaxWidth().weight(1f, fill = false)) {
+                            item { Text(terminalOutput.ifBlank { "Local terminal ready • workspace: ${projectRoot.name}" }, fontSize = 12.sp) }
                         }
                     }
                 }
             }
         }
     }
-
 
     if (showProject) {
         AlertDialog(
@@ -370,9 +406,51 @@ private fun ReexIdeScreen(
         )
     }
 
+    if (showAi) {
+        AlertDialog(
+            onDismissRequest = { if (!aiBusy) showAi = false },
+            title = { Text(if (arabic) "مفتاح الذكاء الاصطناعي + وكيل المشروع" else "AI Key + Project Agent") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = aiKey, onValueChange = { aiKey = it }, modifier = Modifier.fillMaxWidth(), singleLine = true, label = { Text("API key") })
+                    OutlinedTextField(value = aiRequest, onValueChange = { aiRequest = it }, modifier = Modifier.fillMaxWidth(), minLines = 4,
+                        label = { Text(if (arabic) "ماذا تريد من AI؟" else "Project task") },
+                        placeholder = { Text("Fix, analyze, build or refactor the whole project") })
+                    if (aiStatus.isNotBlank()) Text(aiStatus, fontSize = 12.sp)
+                    Text(if (arabic) "المفتاح يُحفظ مشفراً في Android Keystore. الوكيل يقرأ ويعدل ملفات المشروع داخل مساحة العمل فقط."
+                        else "The key is encrypted with Android Keystore. The agent can read and edit files only inside the workspace.", fontSize = 11.sp)
+                }
+            },
+            confirmButton = {
+                Button(enabled = !aiBusy, onClick = {
+                    AiKeyStore(activity).saveKey(aiKey)
+                    if (aiRequest.isBlank()) aiStatus = if (arabic) "تم حفظ المفتاح." else "Key saved."
+                    else {
+                        aiBusy = true
+                        aiStatus = if (arabic) "AI يعمل على المشروع..." else "AI is working on the project..."
+                        scope.launch(Dispatchers.IO) {
+                            val result = AiProjectAgent(activity).run(projectRoot, aiRequest)
+                            withContext(Dispatchers.Main) {
+                                aiBusy = false
+                                aiStatus = if (result.success) "OK: " + result.message + "\nChanged: " + result.changedFiles.joinToString(", ") else result.message
+                                val file = File(projectRoot, activeRelativePath)
+                                if (result.success && file.isFile) {
+                                    val updated = file.readText(Charsets.UTF_8)
+                                    activity.editor?.setText(updated)
+                                    code = updated
+                                }
+                            }
+                        }
+                    }
+                }) { Text(if (aiBusy) "WORKING..." else "SAVE / RUN") }
+            },
+            dismissButton = { TextButton(onClick = { AiKeyStore(activity).clear(); aiKey = ""; aiStatus = "Key cleared." }) { Text("CLEAR KEY") }
+            }
+        )
+    }
+
     if (showCompletion) {
-        val prefix = code.substringAfterLast("\n").trim().substringAfterLast(" ")
-        val suggestions = CompletionEngine.suggest(prefix, code)
+        val suggestions = completionItems
         AlertDialog(
             onDismissRequest = { showCompletion = false },
             title = { Text(if (arabic) "الإكمال الذكي" else "Smart Completion") },

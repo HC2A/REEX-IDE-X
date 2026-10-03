@@ -9,14 +9,12 @@ android {
     compileSdk = 36
 
     defaultConfig {
+        ndk { abiFilters += listOf("arm64-v8a") }
         applicationId = "com.reex.idex"
         minSdk = 24
         targetSdk = 36
-        versionCode = 32
-        versionName = "4.0.0-editor"
-        ndk {
-            abiFilters += listOf("arm64-v8a")
-        }
+        versionCode = 42
+        versionName = "4.2.0-final"
     }
 
     androidResources {
@@ -33,6 +31,7 @@ android {
             isMinifyEnabled = false
         }
         release {
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             isShrinkResources = false
             proguardFiles(
@@ -84,4 +83,7 @@ dependencies {
     implementation("io.github.rosemoe:language-textmate:0.24.4")
     implementation("io.github.rosemoe:oniguruma-native:0.24.4")
 
+    testImplementation("junit:junit:4.13.2")
+
+    implementation(project(":flutter"))
 }

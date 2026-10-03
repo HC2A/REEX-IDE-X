@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "product": "REEX-IDE-X",
+  "environment": "offline",
+  "primaryAbi": "arm64-v8a",
+  "flutter": {
+    "version": "3.47.3",
+    "channel": "stable"
+  },
+  "android": {
+    "compileSdk": 36,
+    "minSdk": 24,
+    "targetSdk": 36
+  },
+  "toolchain": {
+    "dart": "bundled-with-flutter",
+    "androidSdk": true,
+    "buildTools": true,
+    "gradleCache": true,
+    "pubCache": true,
+    "flutterArtifacts": true
+  },
+  "verification": {
+    "sha256Required": true,
+    "offlineBuildRequired": true
+  }
+}
