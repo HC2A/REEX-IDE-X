@@ -182,7 +182,7 @@ private fun ReexIdeScreen(
             val items = if (lsp.isNotEmpty()) {
                 lsp.map { CompletionItem(it.label, it.detail.ifBlank { "Dart LSP" }, it.insertText ?: it.label) }
             } else {
-                CompletionEngine.suggest(lastLine.substringAfterLast(Regex("[^A-Za-z0-9_]")), source)
+                CompletionEngine.suggest(Regex("[A-Za-z0-9_]+$").find(lastLine)?.value.orEmpty(), source)
             }
             withContext(Dispatchers.Main) { completionItems = items }
         }
