@@ -33,8 +33,7 @@ class FlutterPreviewService(private val context: Context) {
         )
 
         val pub = LocalCommandRunner(env).run(project, listOf(flutter.absolutePath, "pub", "get", "--offline"), 600)
-        if (pub.exitCode != 0) return PreviewResult(false, null, "flutter pub get --offline failed.
-" + pub.output)
+        if (pub.exitCode != 0) return PreviewResult(false, null, "flutter pub get --offline failed.\\n" + pub.output)
 
         val build = LocalCommandRunner(env).run(
             project,
@@ -44,8 +43,7 @@ class FlutterPreviewService(private val context: Context) {
         val bundle = project.resolve("build/flutter_assets")
         val kernel = bundle.resolve("kernel_blob.bin")
         if (build.exitCode != 0 || !bundle.isDirectory || !kernel.isFile || kernel.length() == 0L) {
-            return PreviewResult(false, null, "Flutter debug bundle compilation failed.
-" + build.output)
+            return PreviewResult(false, null, "Flutter debug bundle compilation failed.\\n" + build.output)
         }
         return PreviewResult(true, bundle, build.output)
     }
